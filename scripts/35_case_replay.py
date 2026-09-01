@@ -172,7 +172,7 @@ ev = pd.DataFrame(ev)
 print(f'{DATE} 실제 발화 {len(ev)}건')
 
 # ── 시각별 루프 ──────────────────────────────────────────────────────
-grid_out, summary, tops = [], [], []
+grid_out, summary, tops, full_grid = [], [], [], []
 for hh in HOURS:
     TT = pd.Timestamp(f'{DATE} {hh:02d}:00')
     prev = TT - pd.Timedelta(hours=1)
@@ -255,11 +255,21 @@ for hh in HOURS:
     })
     grid_out.append(d.loc[d['is_wui'], ['T', 'prow', 'pcol', 'y_prob_t1', 'y_prob_t2', 'y_prob_t3',
                                         'haz_top_t1', 'score_t1', 'pop_total']])
+    full_grid.append(np.stack([d['haz_top_t1'].values, d['haz_top_t2'].values,
+                               d['haz_top_t3'].values]).astype(np.float32))
     print(f'  {TT:%H:%M}  상위1% 인구 {summary[-1]["top1pct_인구"]:>10,.0f}명  '
           f'발화 {len(hit)}건  ({(time.time()-t0)/60:.1f}분)')
 
 pd.concat(grid_out, ignore_index=True).to_parquet(
     os.path.join(DERIVED, f'replay_{ymd}_grid.parquet'), index=False)
+
+# 전국 배경 PNG 렌더링용 — 유효픽셀 전체의 위험 백분위 (시각 × horizon × 픽셀)
+np.savez_compressed(
+    os.path.join(DERIVED, f'replay_{ymd}_full.npz'),
+    prow=valid_rows.astype(np.int16), pcol=valid_cols.astype(np.int16),
+    hours=np.array(HOURS, dtype=np.int16),
+    haz_top=np.stack(full_grid).astype(np.float32),   # (시각, 3, 픽셀) — 0 = 전국 1위
+)
 sdf = pd.DataFrame(summary)
 sdf.to_csv(os.path.join(DERIVED, f'replay_{ymd}_summary.csv'), index=False, encoding='utf-8-sig')
 pd.concat(tops, ignore_index=True).to_csv(

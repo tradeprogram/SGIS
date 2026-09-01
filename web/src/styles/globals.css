@@ -1,0 +1,91 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#__next {
+  height: 100%;
+  margin: 0;
+  background: #050b1f;
+  color: #e2e8f0;
+  font-family: Pretendard, "Geist", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.maplibregl-ctrl-attrib {
+  background: rgba(5, 11, 31, 0.7) !important;
+  color: #94a3b8 !important;
+  font-size: 10px !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: #94a3b8 !important;
+}
+
+/* 글래스 패널 — Aqua Guard와 동일 언어 */
+.glass {
+  background: rgba(11, 18, 38, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.pill {
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+/* 시간 슬라이더 */
+input[type="range"].tick {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 20px;
+}
+input[type="range"].tick::-webkit-slider-runnable-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+input[type="range"].tick::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6.5px;
+  border-radius: 999px;
+  background: #38bdf8;
+  border: 2px solid #050b1f;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+  cursor: pointer;
+}
+input[type="range"].tick::-moz-range-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+input[type="range"].tick::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #38bdf8;
+  border: 2px solid #050b1f;
+  cursor: pointer;
+}
+
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}

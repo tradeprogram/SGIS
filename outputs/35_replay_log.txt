@@ -2,7 +2,7 @@
 유효 픽셀 403,385개
 
 [1회] 정적·연도별 피처 로드 중...
-  완료 (0.1분)
+  완료 (0.2분)
 WUI 격자 63,352개
 2025-03-22 실제 발화 24건
 python : C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: User
@@ -14,55 +14,55 @@ At line:1 char:406
     + FullyQualifiedErrorId : NativeCommandError
  
   warnings.warn(
-  06:00  상위1% 인구    745,735명  발화 0건  (0.4분)
+  06:00  상위1% 인구    745,735명  발화 0건  (0.7분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  07:00  상위1% 인구    687,086명  발화 2건  (0.5분)
+  07:00  상위1% 인구    687,086명  발화 2건  (0.8분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  08:00  상위1% 인구    701,580명  발화 3건  (0.6분)
+  08:00  상위1% 인구    701,580명  발화 3건  (0.9분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  09:00  상위1% 인구  1,020,865명  발화 6건  (0.7분)
+  09:00  상위1% 인구  1,020,865명  발화 6건  (1.0분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  10:00  상위1% 인구  1,396,457명  발화 10건  (0.8분)
+  10:00  상위1% 인구  1,396,457명  발화 10건  (1.1분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  11:00  상위1% 인구    969,284명  발화 15건  (0.8분)
+  11:00  상위1% 인구    969,284명  발화 15건  (1.2분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  12:00  상위1% 인구    874,569명  발화 14건  (0.9분)
+  12:00  상위1% 인구    874,569명  발화 14건  (1.3분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  13:00  상위1% 인구    845,314명  발화 8건  (1.0분)
+  13:00  상위1% 인구    845,314명  발화 8건  (1.4분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  14:00  상위1% 인구    813,971명  발화 4건  (1.1분)
+  14:00  상위1% 인구    813,971명  발화 4건  (1.5분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  15:00  상위1% 인구    819,341명  발화 3건  (1.2분)
+  15:00  상위1% 인구    819,341명  발화 3건  (1.6분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  16:00  상위1% 인구    789,184명  발화 4건  (1.3분)
+  16:00  상위1% 인구    789,184명  발화 4건  (1.7분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  17:00  상위1% 인구    755,504명  발화 2건  (1.4분)
+  17:00  상위1% 인구    755,504명  발화 2건  (1.8분)
 C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
 X does not have valid feature names, but LGBMClassifier was fitted with feature names
   warnings.warn(
-  18:00  상위1% 인구    763,109명  발화 1건  (1.5분)
+  18:00  상위1% 인구    763,109명  발화 1건  (1.9분)
 
 ====================================================================================================
                   T   top1pct_인구   top5pct_인구  wui_top5pct_격자     top10_인구  top10_평균위험상위%  발화건수
@@ -94,4 +94,4 @@ X does not have valid feature names, but LGBMClassifier was fitted with feature 
   17:00 → 경기 양평 단월(0.16ha,t+1h)=35.2%; 경남 의령 화정(0.9ha,t+2h)=0.6%
   18:00 → 경남 의령 화정(0.9ha,t+1h)=0.0%
 
-저장 완료 (1.5분)  캐시 래스터 75개
+저장 완료 (2.0분)  캐시 래스터 75개

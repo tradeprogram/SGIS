@@ -1,0 +1,27 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sanbul-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "cwd": "C:/for_sgis/web",
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "sanbul-web-prod",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "next",
+        "start"
+      ],
+      "cwd": "C:/for_sgis/web",
+      "port": 3100,
+      "autoPort": true
+    }
+  ]
+}
