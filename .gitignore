@@ -38,3 +38,5 @@ venv/
 # 진행 중 로그 · 임시 비교파일
 outputs/51_scan_log.txt
 outputs/_prev_*.csv
+outputs/54_chain_log.txt
+web/tsconfig.tsbuildinfo

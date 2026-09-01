@@ -15,6 +15,7 @@ export default function Home() {
   const [sel, setSel] = useState<Selected | null>(null);
   const [playing, setPlaying] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [timeRisk, setTimeRisk] = useState<TimeRisk | null>(null);
   const mapRef = useRef<MlMap | null>(null);
 
   // 최초 로드 — 사례일 목록과 전 일자 공용 격자
@@ -28,6 +29,14 @@ export default function Home() {
       const pref = r.days.find((d) => d.n_fire > 0) ?? r.days[0];
       setYmd(pref.ymd);
     });
+  }, []);
+
+  // 시간축 위험등급. 54번 미실행이면 파일이 없으므로 해당 블록만 숨긴다.
+  useEffect(() => {
+    fetch("/data/time_risk.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setTimeRisk)
+      .catch(() => setTimeRisk(null));
   }, []);
 
   // 선택한 날의 자산
@@ -60,6 +69,9 @@ export default function Home() {
     () => (day?.fires ?? []).filter((f) => f.hh >= hour + 1 && f.hh <= hour + 3),
     [day, hour]
   );
+
+  // 이 날 이 시각이 5년(또는 해당 연도) 분포에서 어디쯤인가
+  const tr = timeRisk && ymd ? timeRisk.days[ymd]?.[String(hour)] ?? null : null;
 
   const pickCell = useCallback(
     (k: number, lon: number, lat: number) => {
@@ -219,6 +231,39 @@ export default function Home() {
               </span>
             </div>
           ))}
+
+          {tr && timeRisk && (
+            <>
+              <SectionTitle className="mt-4">이 날의 전국 위험 수준</SectionTitle>
+              <div className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
+                위 등급은 <b className="text-slate-300">그날 안에서의 공간 순위</b>라 조용한 날에도
+                상위 1%는 늘 나옵니다. 이 값은 <b className="text-slate-300">{timeRisk.note}</b>{" "}
+                오늘이 어느 정도인지를 따로 잰 것입니다.
+              </div>
+              <div
+                className="mb-1 flex items-center gap-2 rounded-lg px-2 py-2"
+                style={{
+                  background: timeLevelColor(tr[1]) + "22",
+                  border: "1px solid " + timeLevelColor(tr[1]) + "55",
+                }}
+              >
+                <span
+                  className="h-3 w-3 shrink-0 rounded"
+                  style={{ background: timeLevelColor(tr[1]) }}
+                />
+                <span className="text-[12px] font-semibold text-white">{tr[1]}</span>
+                <span className="tnum ml-auto text-[10px] text-slate-300">
+                  상위 {nf(100 - tr[0], 1)}%
+                </span>
+              </div>
+              <div className="mb-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${tr[0]}%`, background: timeLevelColor(tr[1]) }}
+                />
+              </div>
+            </>
+          )}
 
           <SectionTitle className="mt-4">이 시각 전국</SectionTitle>
           {day ? (
@@ -417,6 +462,13 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** 시간축 등급 색. 지도 등급과 같은 색계열을 쓰되 별개 축임을 알 수 있게 한다. */
+const timeLevelColor = (name: string) =>
+  ({ "매우 높음": "#ef4444", 높음: "#f97316", 주의: "#eab308", 보통: "#84cc16" } as Record<
+    string,
+    string
+  >)[name] ?? "#64748b";
+
 /** 전국 상대 백분위 → 등급. 확률이 아니다. */
 function levelOf(root: Root, topPct: number) {
   return root.levels.find((l) => topPct <= l.max_pct) ?? null;
@@ -430,6 +482,13 @@ function groupByYear(days: DayInfo[]): [number, DayInfo[]][] {
 
 // ─────────────── 타입 ───────────────
 type Level = { key: string; label: string; max_pct: number; color: string };
+/** 54번 산출. 지도의 공간 백분위와 달리 "5년(또는 해당 연도) 중 오늘이 몇 등인가"를 잰다. */
+type TimeRisk = {
+  basis: "통합" | "연도별";
+  levels: string[];
+  note: string;
+  days: Record<string, Record<string, [number, string]>>;
+};
 type Signal = { key: string; label: string; unit: string; dir: "up" | "down" };
 type DayInfo = {
   date: string;
@@ -585,7 +644,9 @@ type MapProps = {
 function FireMap({ root, cells, values, fires, ymd, hour, onPick, onReady }: MapProps) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
-  const ready = useRef(false);
+  // ref 가 아니라 state 다. 지도 구축이 데이터 로드보다 늦게 끝나는 경우가 있는데,
+  // ref 로는 렌더가 트리거되지 않아 아래 갱신 effect 들이 다시 돌지 않는다.
+  const [ready, setReady] = useState(false);
   const pickRef = useRef(onPick);
   pickRef.current = onPick;
 
@@ -694,7 +755,7 @@ function FireMap({ root, cells, values, fires, ymd, hour, onPick, onReady }: Map
           pop.remove();
         });
 
-        ready.current = true;
+        setReady(true);
         onReady(m);
       };
 
@@ -708,7 +769,7 @@ function FireMap({ root, cells, values, fires, ymd, hour, onPick, onReady }: Map
       dead = true;
       map.current?.remove();
       map.current = null;
-      ready.current = false;
+      setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -716,7 +777,7 @@ function FireMap({ root, cells, values, fires, ymd, hour, onPick, onReady }: Map
   // 날짜·시각 변경 → 배경 PNG와 셀 색상 갱신
   useEffect(() => {
     const m = map.current;
-    if (!m || !ready.current || !ymd || !values) return;
+    if (!m || !ready || !ymd || !values) return;
     const src = m.getSource("hazard") as any;
     src?.updateImage?.({ url: `/data/d/${ymd}/hazard_${pad(hour)}.png` });
 
@@ -728,12 +789,12 @@ function FireMap({ root, cells, values, fires, ymd, hour, onPick, onReady }: Map
         m.setFeatureState({ source: "cells", id: v.i[k] }, { top: v.top[k] / sc });
       }
     }
-  }, [ymd, hour, values]);
+  }, [ready, ymd, hour, values]);
 
   // 실제 발화점 갱신
   useEffect(() => {
     const m = map.current;
-    if (!m || !ready.current) return;
+    if (!m || !ready) return;
     const src = m.getSource("fires") as any;
     src?.setData?.({
       type: "FeatureCollection",
@@ -744,7 +805,7 @@ function FireMap({ root, cells, values, fires, ymd, hour, onPick, onReady }: Map
         properties: { ...f },
       })),
     });
-  }, [fires]);
+  }, [ready, fires]);
 
   return <div ref={box} className="absolute inset-0" />;
 }
