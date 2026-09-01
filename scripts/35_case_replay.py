@@ -233,6 +233,11 @@ for hh in HOURS:
 
     d = base.copy()
     d['T'] = TT
+    # 우측 패널에 띄울 실제 모델 입력값 (참고지표가 아니라 진짜 입력이라는 게 요점)
+    for _c2, _v2 in [('vpd', feat['vpd']), ('wind', feat['wind']),
+                     ('hum4d', feat['hum4d']), ('prcp4d', feat['prcp4d']),
+                     ('ndmi', feat['ndmi'])]:
+        d[_c2] = _v2
     for k, H in enumerate(HORIZONS):
         d[f'y_prob_t{H}'] = probs[:, k]
         d[f'haz_rank_t{H}'] = pd.Series(probs[:, k]).rank(pct=True, na_option='keep').values * 100
@@ -264,7 +269,8 @@ for hh in HOURS:
         '발화_위험상위%': '; '.join(f"{h['loc']}({h['ha']}ha,t+{h['H']}h)={h['top_pct']:.1f}%" for h in hit),
     })
     grid_out.append(d.loc[d['is_wui'], ['T', 'prow', 'pcol', 'y_prob_t1', 'y_prob_t2', 'y_prob_t3',
-                                        'haz_top_t1', 'score_t1', 'pop_total']])
+                                        'haz_top_t1', 'score_t1', 'pop_total',
+                                        'vpd', 'wind', 'hum4d', 'prcp4d', 'ndmi']])
     full_grid.append(np.stack([d['haz_top_t1'].values, d['haz_top_t2'].values,
                                d['haz_top_t3'].values]).astype(np.float32))
     print(f'  {TT:%H:%M}  상위1% 인구 {summary[-1]["top1pct_인구"]:>10,.0f}명  '
