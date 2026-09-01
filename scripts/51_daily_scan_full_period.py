@@ -105,9 +105,13 @@ FEATURE_COLS = [
 
 years = [int(ONLY_YEAR)] if ONLY_YEAR else YEARS_ALL
 
+# 다른 스캔 시각으로 추가 실행할 때 기존 산출물을 덮지 않게 한다.
+# 최종 통합은 daily_scan_*.parquet 을 glob 하므로 접미사가 붙어도 자동으로 합쳐진다.
+SUFFIX = os.environ.get('OUT_SUFFIX', '')
+
 for YEAR in years:
-    out_path = os.path.join(OUT_DIR, f'daily_scan_{YEAR}.parquet')
-    rank_path = os.path.join(OUT_DIR, f'ignition_ranks_{YEAR}.parquet')
+    out_path = os.path.join(OUT_DIR, f'daily_scan_{YEAR}{SUFFIX}.parquet')
+    rank_path = os.path.join(OUT_DIR, f'ignition_ranks_{YEAR}{SUFFIX}.parquet')
     if os.path.exists(out_path) and not os.environ.get('FORCE'):
         print(f'\n{YEAR}: 이미 있음 → 건너뜀 ({out_path})')
         continue
