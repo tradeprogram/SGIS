@@ -1,0 +1,210 @@
+{
+ "rule": {
+  "top_damage_per_year": 3,
+  "random_per_year": 2,
+  "seed": 42,
+  "note": "무작위 표본은 상위 3일을 제외한 산불시즌 전체(발화 없는 날 포함)에서 뽑는다. 모델 예측 결과는 선정에 사용하지 않는다."
+ },
+ "days": [
+  {
+   "date": "2021-02-14",
+   "year": 2021,
+   "reason": "random",
+   "n_fire": 2,
+   "ha": 0.07,
+   "cells": 2
+  },
+  {
+   "date": "2021-02-20",
+   "year": 2021,
+   "reason": "top_damage",
+   "n_fire": 3,
+   "ha": 12.03,
+   "cells": 3
+  },
+  {
+   "date": "2021-02-21",
+   "year": 2021,
+   "reason": "top_damage",
+   "n_fire": 8,
+   "ha": 335.8,
+   "cells": 8
+  },
+  {
+   "date": "2021-03-23",
+   "year": 2021,
+   "reason": "top_damage",
+   "n_fire": 7,
+   "ha": 24.79,
+   "cells": 7
+  },
+  {
+   "date": "2021-05-28",
+   "year": 2021,
+   "reason": "random",
+   "n_fire": 0,
+   "ha": 0.0,
+   "cells": 0
+  },
+  {
+   "date": "2022-03-04",
+   "year": 2022,
+   "reason": "top_damage",
+   "n_fire": 10,
+   "ha": 16512.0,
+   "cells": 241
+  },
+  {
+   "date": "2022-03-05",
+   "year": 2022,
+   "reason": "top_damage",
+   "n_fire": 11,
+   "ha": 4233.21,
+   "cells": 38
+  },
+  {
+   "date": "2022-04-07",
+   "year": 2022,
+   "reason": "random",
+   "n_fire": 5,
+   "ha": 0.55,
+   "cells": 5
+  },
+  {
+   "date": "2022-04-08",
+   "year": 2022,
+   "reason": "random",
+   "n_fire": 5,
+   "ha": 0.43,
+   "cells": 5
+  },
+  {
+   "date": "2022-04-10",
+   "year": 2022,
+   "reason": "top_damage",
+   "n_fire": 19,
+   "ha": 1076.95,
+   "cells": 30
+  },
+  {
+   "date": "2023-02-13",
+   "year": 2023,
+   "reason": "random",
+   "n_fire": 0,
+   "ha": 0.0,
+   "cells": 0
+  },
+  {
+   "date": "2023-03-08",
+   "year": 2023,
+   "reason": "top_damage",
+   "n_fire": 6,
+   "ha": 167.48,
+   "cells": 6
+  },
+  {
+   "date": "2023-04-02",
+   "year": 2023,
+   "reason": "top_damage",
+   "n_fire": 34,
+   "ha": 2590.13,
+   "cells": 56
+  },
+  {
+   "date": "2023-04-03",
+   "year": 2023,
+   "reason": "top_damage",
+   "n_fire": 11,
+   "ha": 908.63,
+   "cells": 14
+  },
+  {
+   "date": "2023-05-17",
+   "year": 2023,
+   "reason": "random",
+   "n_fire": 4,
+   "ha": 0.95,
+   "cells": 4
+  },
+  {
+   "date": "2024-02-14",
+   "year": 2024,
+   "reason": "random",
+   "n_fire": 1,
+   "ha": 3.0,
+   "cells": 1
+  },
+  {
+   "date": "2024-03-20",
+   "year": 2024,
+   "reason": "top_damage",
+   "n_fire": 10,
+   "ha": 5.57,
+   "cells": 10
+  },
+  {
+   "date": "2024-03-22",
+   "year": 2024,
+   "reason": "top_damage",
+   "n_fire": 6,
+   "ha": 4.83,
+   "cells": 6
+  },
+  {
+   "date": "2024-04-02",
+   "year": 2024,
+   "reason": "top_damage",
+   "n_fire": 5,
+   "ha": 4.22,
+   "cells": 5
+  },
+  {
+   "date": "2024-04-21",
+   "year": 2024,
+   "reason": "random",
+   "n_fire": 0,
+   "ha": 0.0,
+   "cells": 0
+  },
+  {
+   "date": "2025-03-21",
+   "year": 2025,
+   "reason": "top_damage",
+   "n_fire": 6,
+   "ha": 3399.54,
+   "cells": 39
+  },
+  {
+   "date": "2025-03-22",
+   "year": 2025,
+   "reason": "top_damage",
+   "n_fire": 24,
+   "ha": 1107.36,
+   "cells": 24
+  },
+  {
+   "date": "2025-04-28",
+   "year": 2025,
+   "reason": "top_damage",
+   "n_fire": 3,
+   "ha": 310.19,
+   "cells": 6
+  },
+  {
+   "date": "2025-05-19",
+   "year": 2025,
+   "reason": "random",
+   "n_fire": 0,
+   "ha": 0.0,
+   "cells": 0
+  },
+  {
+   "date": "2025-05-23",
+   "year": 2025,
+   "reason": "random",
+   "n_fire": 0,
+   "ha": 0.0,
+   "cells": 0
+  }
+ ]
+}

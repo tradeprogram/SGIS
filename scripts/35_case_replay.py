@@ -178,7 +178,9 @@ for r in day.itertuples():
     ev.append({'fire_id': r.fire_id, 'dt': r.dt, 'ignite_h': pd.Timestamp(r.dt).floor('h'),
                'prow': pr, 'pcol': pc, 'damagearea': r.damagearea,
                'loc': f'{r.locsi} {r.locgungu} {r.locmenu}'})
-ev = pd.DataFrame(ev)
+# 발화 0건인 날도 대상이므로 빈 경우에도 컬럼을 갖춘 프레임을 만든다
+ev = pd.DataFrame(ev, columns=['fire_id', 'dt', 'ignite_h', 'prow', 'pcol',
+                               'damagearea', 'loc'])
 print(f'{DATE} 실제 발화 {len(ev)}건')
 
 # ── 시각별 루프 ──────────────────────────────────────────────────────
@@ -265,6 +267,10 @@ for hh in HOURS:
         'wui_top5pct_격자': int(((d['haz_top_t1'] <= 5) & d['is_wui']).sum()),
         'top10_인구': float(top['pop_total'].sum()),
         'top10_평균위험상위%': round(float(top['haz_top_t1'].mean()), 3),
+        # 공간 백분위만 보면 조용한 날이 더 위험해 보인다.
+        # 시간축 비교(오늘이 5년 중 얼마나 위험한 날인가)를 위해 절대값도 남긴다.
+        'max_prob': float(np.nanmax(probs[:, 0])),
+        'mean_prob': float(np.nanmean(probs[:, 0])),
         '발화건수': len(hit),
         '발화_위험상위%': '; '.join(f"{h['loc']}({h['ha']}ha,t+{h['H']}h)={h['top_pct']:.1f}%" for h in hit),
     })
