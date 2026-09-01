@@ -30,7 +30,17 @@ MASK    = NAS + r'\mask\common_mask_500m_5179.tif'
 
 DATE       = os.environ.get('DATE', '2025-03-22')
 HOURS      = [int(h) for h in os.environ.get('HOURS', '6,7,8,9,10,11,12,13,14,15,16,17,18').split(',')]
-FOLD_YEAR  = 2025
+# 연도 → fold 자동 선택. 그 해를 학습에서 뺀 모델을 써야 누수가 없다.
+#   2021→fold1, 2022→fold2, 2023→fold3, 2024→fold4, 2025→fold5
+YEARS = [2021, 2022, 2023, 2024, 2025]
+def fold_of(year: int) -> int:
+    if year not in YEARS:
+        raise SystemExit(f'지원 연도 아님: {year} (2021~2025)')
+    return YEARS.index(year) + 1
+
+FOLD_YEAR  = int(DATE[:4])
+FOLD_NO    = fold_of(FOLD_YEAR)
+TAG        = f'gru_ign_fold{FOLD_NO}_test{FOLD_YEAR}'
 FOREST_MIN = 0.3
 POP_MIN    = 10.0
 W_HAZ      = 0.5
@@ -132,14 +142,14 @@ base['expo_rank'] = base['pop_total'].rank(pct=True) * 100
 print(f'WUI 격자 {int(base["is_wui"].sum()):,}개')
 
 # ── 모델 ─────────────────────────────────────────────────────────────
-lgbm = joblib.load(NAS + rf'\ml_results\exp_no_smap_spi_temp_4v1\lgbm_models\lgbm_fold5_test{FOLD_YEAR}.pkl')
-with open(os.path.join(MDL_DIR, 'gru_ign_fold5_test2025_scaler.pkl'), 'rb') as f:
+lgbm = joblib.load(NAS + rf'\ml_results\exp_no_smap_spi_temp_4v1\lgbm_models\lgbm_fold{FOLD_NO}_test{FOLD_YEAR}.pkl')
+with open(os.path.join(MDL_DIR, f'{TAG}_scaler.pkl'), 'rb') as f:
     scaler = pickle.load(f)
 gru_enc = nn.GRU(2, 64, num_layers=2, batch_first=True, dropout=0.3)
 gru_head = nn.Sequential(nn.Linear(64 + 7, 64), nn.ReLU(), nn.Dropout(0.3),
                          nn.Linear(64, len(HORIZONS)), nn.Sigmoid())
-gru_enc.load_state_dict(torch.load(os.path.join(MDL_DIR, 'gru_ign_fold5_test2025_body.pt'), map_location='cpu'))
-gru_head.load_state_dict(torch.load(os.path.join(MDL_DIR, 'gru_ign_fold5_test2025_head.pt'), map_location='cpu'))
+gru_enc.load_state_dict(torch.load(os.path.join(MDL_DIR, f'{TAG}_body.pt'), map_location='cpu'))
+gru_head.load_state_dict(torch.load(os.path.join(MDL_DIR, f'{TAG}_head.pt'), map_location='cpu'))
 gru_enc.eval(); gru_head.eval()
 
 FEATURE_COLS = [

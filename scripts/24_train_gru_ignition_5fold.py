@@ -173,13 +173,15 @@ for fd in FOLDS:
         prob_rows[f'y_prob_t{H}'] = te_prob[:, k]
     all_probs.append(pd.DataFrame(prob_rows))
 
-    if test_year == 2025:
-        import pickle
-        torch.save(gru_enc.state_dict(),  os.path.join(MDL_DIR, 'gru_ign_fold5_test2025_body.pt'))
-        torch.save(gru_head.state_dict(), os.path.join(MDL_DIR, 'gru_ign_fold5_test2025_head.pt'))
-        with open(os.path.join(MDL_DIR, 'gru_ign_fold5_test2025_scaler.pkl'), 'wb') as f:
-            pickle.dump(scaler, f)
-        print('  fold5 모델 저장')
+    # fold 5개를 모두 저장한다. 특정 연도를 추론하려면 그 해를 학습에서 뺀 fold 모델을
+    # 써야 누수가 없다 (2022-03-04 지도는 fold2, 2025-03-22 지도는 fold5).
+    import pickle
+    tag = f'gru_ign_fold{fold_no}_test{test_year}'
+    torch.save(gru_enc.state_dict(),  os.path.join(MDL_DIR, f'{tag}_body.pt'))
+    torch.save(gru_head.state_dict(), os.path.join(MDL_DIR, f'{tag}_head.pt'))
+    with open(os.path.join(MDL_DIR, f'{tag}_scaler.pkl'), 'wb') as f:
+        pickle.dump(scaler, f)
+    print(f'  모델 저장: {tag}')
 
     thrs = np.linspace(0.01, 0.99, 99)
     for k, H in enumerate(HORIZONS):
