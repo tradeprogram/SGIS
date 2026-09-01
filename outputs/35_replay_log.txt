@@ -1,0 +1,97 @@
+﻿사례 replay: 2025-03-22  시각 6~18시 (13개)
+유효 픽셀 403,385개
+
+[1회] 정적·연도별 피처 로드 중...
+  완료 (0.1분)
+WUI 격자 63,352개
+2025-03-22 실제 발화 24건
+python : C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: User
+Warning: X does not have valid feature names, but LGBMClassifier was fitted with feature names
+At line:1 char:406
++ ... ,16,17,18'; python -u "C:\for_sgis\scripts\35_case_replay.py" > "C:\f ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\user\A...h feature names:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  warnings.warn(
+  06:00  상위1% 인구    745,735명  발화 0건  (0.4분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  07:00  상위1% 인구    687,086명  발화 2건  (0.5분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  08:00  상위1% 인구    701,580명  발화 3건  (0.6분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  09:00  상위1% 인구  1,020,865명  발화 6건  (0.7분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  10:00  상위1% 인구  1,396,457명  발화 10건  (0.8분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  11:00  상위1% 인구    969,284명  발화 15건  (0.8분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  12:00  상위1% 인구    874,569명  발화 14건  (0.9분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  13:00  상위1% 인구    845,314명  발화 8건  (1.0분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  14:00  상위1% 인구    813,971명  발화 4건  (1.1분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  15:00  상위1% 인구    819,341명  발화 3건  (1.2분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  16:00  상위1% 인구    789,184명  발화 4건  (1.3분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  17:00  상위1% 인구    755,504명  발화 2건  (1.4분)
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: 
+X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+  18:00  상위1% 인구    763,109명  발화 1건  (1.5분)
+
+====================================================================================================
+                  T   top1pct_인구   top5pct_인구  wui_top5pct_격자     top10_인구  top10_평균위험상위%  발화건수
+2025-03-22 06:00:00 7.457350e+05 2.621572e+06            3185 30012.096050          0.489     0
+2025-03-22 07:00:00 6.870859e+05 2.180279e+06            2856 28032.675490          0.421     2
+2025-03-22 08:00:00 7.015797e+05 2.424212e+06            2937 28409.469185          0.455     3
+2025-03-22 09:00:00 1.020865e+06 3.819477e+06            3532 28228.048475          0.405     6
+2025-03-22 10:00:00 1.396457e+06 4.914196e+06            5425 28521.297780          0.211    10
+2025-03-22 11:00:00 9.692839e+05 3.666902e+06            6256 29103.873331          0.335    15
+2025-03-22 12:00:00 8.745693e+05 3.545933e+06            6951 31834.438253          0.574    14
+2025-03-22 13:00:00 8.453145e+05 3.665410e+06            7281 31834.438253          0.503     8
+2025-03-22 14:00:00 8.139712e+05 3.820693e+06            7409 33759.600972          0.590     4
+2025-03-22 15:00:00 8.193413e+05 3.904662e+06            7422 32479.488815          0.602     3
+2025-03-22 16:00:00 7.891838e+05 3.797812e+06            7351 32629.639722          0.654     4
+2025-03-22 17:00:00 7.555044e+05 3.830375e+06            7231 30743.475286          0.529     2
+2025-03-22 18:00:00 7.631088e+05 3.846377e+06            7083 29879.004855          0.522     1
+
+실제 발화 대조:
+  07:00 → 광주 광산 nan(0.01ha,t+3h)=10.8%; 대구 북 nan(0.15ha,t+3h)=35.5%
+  08:00 → 광주 광산 nan(0.01ha,t+2h)=18.4%; 대구 북 nan(0.15ha,t+2h)=21.2%; 경기 여주 점동(0.02ha,t+3h)=49.1%
+  09:00 → 광주 광산 nan(0.01ha,t+1h)=46.6%; 대구 북 nan(0.15ha,t+1h)=11.3%; 경기 여주 점동(0.02ha,t+2h)=55.8%; 전남 보성 웅치(0.1ha,t+3h)=75.8%; 전남 보성 노동(0.5ha,t+3h)=73.6%; 울산 울주 온양(931.0ha,t+3h)=9.1%
+  10:00 → 경기 여주 점동(0.02ha,t+1h)=65.4%; 전남 보성 웅치(0.1ha,t+2h)=80.8%; 전남 보성 노동(0.5ha,t+2h)=78.3%; 울산 울주 온양(931.0ha,t+2h)=9.8%; 경북 의성 금성(57.0ha,t+3h)=4.7%; 전북 진안 안천(7.0ha,t+3h)=46.9%; 경기 여주 강천(7.6ha,t+3h)=29.0%; 전남 진도 군내(0.01ha,t+3h)=32.2%; 경기 광주 초월(0.16ha,t+3h)=10.6%; 경기 연천 백학(3.0ha,t+3h)=nan%
+  11:00 → 전남 보성 웅치(0.1ha,t+1h)=75.3%; 전남 보성 노동(0.5ha,t+1h)=73.2%; 울산 울주 온양(931.0ha,t+1h)=10.5%; 경북 의성 금성(57.0ha,t+2h)=3.4%; 전북 진안 안천(7.0ha,t+2h)=25.2%; 경기 여주 강천(7.6ha,t+2h)=34.9%; 전남 진도 군내(0.01ha,t+2h)=56.9%; 경기 광주 초월(0.16ha,t+2h)=27.6%; 경기 연천 백학(3.0ha,t+2h)=nan%; 경남 밀양 nan(0.09ha,t+3h)=0.0%; 강원 정선 신동(0.5ha,t+3h)=41.3%; 전남 보성 문덕(0.1ha,t+3h)=17.3%; 전북 남원 대산(0.15ha,t+3h)=42.0%; 경기 동두천 nan(0.1ha,t+3h)=nan%; 경남 김해 한림(97.0ha,t+3h)=1.3%
+  12:00 → 경북 의성 금성(57.0ha,t+1h)=6.0%; 전북 진안 안천(7.0ha,t+1h)=27.9%; 경기 여주 강천(7.6ha,t+1h)=35.5%; 전남 진도 군내(0.01ha,t+1h)=58.0%; 경기 광주 초월(0.16ha,t+1h)=36.6%; 경기 연천 백학(3.0ha,t+1h)=nan%; 경남 밀양 nan(0.09ha,t+2h)=0.5%; 강원 정선 신동(0.5ha,t+2h)=54.3%; 전남 보성 문덕(0.1ha,t+2h)=11.4%; 전북 남원 대산(0.15ha,t+2h)=47.6%; 경기 동두천 nan(0.1ha,t+2h)=nan%; 경남 김해 한림(97.0ha,t+2h)=0.6%; 경북 경주 외동(0.3ha,t+3h)=29.5%; 광주 북 nan(0.01ha,t+3h)=87.2%
+  13:00 → 경남 밀양 nan(0.09ha,t+1h)=0.8%; 강원 정선 신동(0.5ha,t+1h)=64.2%; 전남 보성 문덕(0.1ha,t+1h)=20.3%; 전북 남원 대산(0.15ha,t+1h)=40.9%; 경기 동두천 nan(0.1ha,t+1h)=nan%; 경남 김해 한림(97.0ha,t+1h)=0.7%; 경북 경주 외동(0.3ha,t+2h)=17.5%; 광주 북 nan(0.01ha,t+2h)=83.8%
+  14:00 → 경북 경주 외동(0.3ha,t+1h)=18.4%; 광주 북 nan(0.01ha,t+1h)=87.8%; 전북 남원 nan(1.0ha,t+3h)=2.9%; 경북 안동 nan(0.5ha,t+3h)=0.7%
+  15:00 → 전북 남원 nan(1.0ha,t+2h)=3.0%; 경북 안동 nan(0.5ha,t+2h)=0.5%; 경기 양평 단월(0.16ha,t+3h)=37.3%
+  16:00 → 전북 남원 nan(1.0ha,t+1h)=2.3%; 경북 안동 nan(0.5ha,t+1h)=0.5%; 경기 양평 단월(0.16ha,t+2h)=36.7%; 경남 의령 화정(0.9ha,t+3h)=0.1%
+  17:00 → 경기 양평 단월(0.16ha,t+1h)=35.2%; 경남 의령 화정(0.9ha,t+2h)=0.6%
+  18:00 → 경남 의령 화정(0.9ha,t+1h)=0.0%
+
+저장 완료 (1.5분)  캐시 래스터 75개

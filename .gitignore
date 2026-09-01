@@ -1,0 +1,30 @@
+# 인증정보 — SGIS API 이용약관 제4조: 키는 발급받은 자만 이용, 타인과 공유 불가
+.env
+*.key
+
+# 원천·중간 데이터 (1.8GB). 원 권리는 각 제공기관에 있어 재배포하지 않는다.
+#   SGIS 격자통계·격자경계 → 국가데이터처 자료제공 신청으로 각자 수령
+#   산불 레퍼런스·기상·위성 래스터 → NAS (문화재청 과제 내부자료)
+# git은 무시된 디렉터리 안으로 들어가지 않으므로 단계별로 열어야 예외가 작동한다.
+data/*
+!data/grid_data/
+data/grid_data/*
+!data/grid_data/derived/
+data/grid_data/derived/*
+
+# 재현·검증에 필요한 작은 결과표와 파라미터만 공개 (대용량 parquet 제외)
+!data/grid_data/derived/*.csv
+!data/grid_data/derived/*.json
+
+# 구 persistence 모델의 공간추론 산출물 (5.8MB, 본 저장소 파이프라인 결과 아님)
+data/grid_data/derived/gru_spatial_pred_multih_2025.csv
+
+# 학습된 가중치 — 데이터셋 재구축 중이라 확정 전까지 제외
+models/
+
+# 파이썬
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+venv/
+.venv/
