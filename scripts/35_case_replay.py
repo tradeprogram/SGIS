@@ -301,7 +301,9 @@ print(f'\n{"="*100}')
 print(sdf[['T', 'top1pct_인구', 'top5pct_인구', 'wui_top5pct_격자',
            'top10_인구', 'top10_평균위험상위%', '발화건수']].to_string(index=False))
 print(f'\n실제 발화 대조:')
-for r in sdf.itertuples():
-    if r._8:
-        print(f'  {r.T:%H:%M} → {r._8}')
+# itertuples 의 위치 기반 접근(r._8)은 summary 컬럼이 하나만 늘어도 어긋난다.
+# 실제로 max_prob·mean_prob 를 추가했을 때 깨졌다. 이름으로 접근한다.
+for _, r in sdf.iterrows():
+    if r['발화_위험상위%']:
+        print(f'  {r["T"]:%H:%M} → {r["발화_위험상위%"]}')
 print(f'\n저장 완료 ({(time.time()-t0)/60:.1f}분)  캐시 래스터 {len(_cache)}개')

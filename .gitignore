@@ -40,3 +40,6 @@ outputs/51_scan_log.txt
 outputs/_prev_*.csv
 outputs/54_chain_log.txt
 web/tsconfig.tsbuildinfo
+outputs/chain2_log.txt
+outputs/51_scan_h*_log.txt
+outputs/53_assets_log.txt

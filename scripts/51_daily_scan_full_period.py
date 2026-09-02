@@ -311,7 +311,10 @@ for YEAR in years:
 # ── 통합 ─────────────────────────────────────────────────────────────
 sc = sorted(glob.glob(os.path.join(OUT_DIR, 'daily_scan_*.parquet')))
 rk = sorted(glob.glob(os.path.join(OUT_DIR, 'ignition_ranks_*.parquet')))
-if len(sc) == len(YEARS_ALL):
+# 접미사 실행(OUT_SUFFIX)이 있으면 파일 수가 연도 수보다 많아진다.
+# 파일 개수가 아니라 "모든 연도가 하나 이상 있는가"로 판단한다.
+have = {y for y in YEARS_ALL if any(f'daily_scan_{y}' in os.path.basename(f) for f in sc)}
+if have == set(YEARS_ALL):
     d = pd.concat([pd.read_parquet(f) for f in sc], ignore_index=True)
     d.to_csv(os.path.join(DERIVED, 'daily_scan_all.csv'), index=False, encoding='utf-8-sig')
     r = pd.concat([pd.read_parquet(f) for f in rk], ignore_index=True)
