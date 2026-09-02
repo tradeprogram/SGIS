@@ -30,6 +30,9 @@ import joblib
 import torch
 import torch.nn as nn
 import pyproj
+from PIL import Image
+from matplotlib.colors import LinearSegmentedColormap
+from rasterio.warp import calculate_default_transform, reproject, Resampling
 
 NAS     = r'V:\data'
 MDL_DIR = r'C:\for_sgis\models'
@@ -59,6 +62,48 @@ with rasterio.open(MASK) as src:
 valid_rows, valid_cols = np.where(mask_arr == 1)
 n = len(valid_rows)
 print(f'유효 픽셀 {n:,}개 | 스캔 시각 {SCAN_HOURS}')
+
+# ── 전 기간 일별 지도 PNG (DUMP_PNG=1) ───────────────────────────────
+# 741일 전부에 대해 지도를 두면 "사례 몇 건"이 아니라 "매일 돌아간 시스템"이 된다.
+# 스캔은 이미 전 격자 추론을 하고 있으므로, 여기서 PNG 한 장을 더 굽는 비용은
+# 사실상 0이다. 별도 패스로 돌리면 741회 추론을 다시 해야 해서 3.8시간이 든다.
+DUMP_PNG   = os.environ.get('DUMP_PNG') == '1'
+PNG_DIR    = os.path.join(r'C:', os.sep, 'for_sgis', 'web', 'public', 'data', 'daily')
+PNG_DOWN   = int(os.environ.get('PNG_DOWNSCALE', '4'))   # 사례일(2)보다 거칠게
+PNG_TOP    = float(os.environ.get('PNG_TOP_PCT', '20'))  # 상위 20%까지 착색
+
+if DUMP_PNG:
+    os.makedirs(PNG_DIR, exist_ok=True)
+    with rasterio.open(MASK) as _s:
+        _bounds, _crs = _s.bounds, _s.crs
+    _H, _W = shape
+    _dt0, _dw, _dh = calculate_default_transform(_crs, 'EPSG:3857', _W, _H, *_bounds)
+    _dw, _dh = _dw // PNG_DOWN, _dh // PNG_DOWN
+    _dtr = rasterio.Affine(_dt0.a * PNG_DOWN, 0, _dt0.c, 0, _dt0.e * PNG_DOWN, _dt0.f)
+    _l, _t = _dtr.c, _dtr.f
+    _r, _b = _l + _dtr.a * _dw, _t + _dtr.e * _dh
+    _tf = pyproj.Transformer.from_crs('EPSG:3857', 'EPSG:4326', always_xy=True)
+    (_lx, _ty), (_rx, _by) = _tf.transform(_l, _t), _tf.transform(_r, _b)
+    PNG_CORNERS = [[_lx, _ty], [_rx, _ty], [_rx, _by], [_lx, _by]]
+    _cmap = LinearSegmentedColormap.from_list(
+        'fire', ['#22d3ee', '#a3e635', '#facc15', '#fb923c', '#ef4444'])
+    print(f'PNG 덤프 켜짐 → {PNG_DIR}  ({_dw}x{_dh}, downscale {PNG_DOWN})')
+
+def dump_png(haz_t1, day, hh):
+    src_arr = np.full(shape, np.nan, dtype=np.float32)
+    src_arr[valid_rows, valid_cols] = haz_t1
+    dst = np.full((_dh, _dw), np.nan, dtype=np.float32)
+    reproject(src_arr, dst, src_transform=T, src_crs=_crs,
+              dst_transform=_dtr, dst_crs='EPSG:3857',
+              src_nodata=np.nan, dst_nodata=np.nan, resampling=Resampling.average)
+    t = np.clip(1.0 - dst / PNG_TOP, 0.0, 1.0)
+    t[np.isnan(dst)] = 0.0
+    rgba = (_cmap(t) * 255).astype(np.uint8)
+    a = np.where(np.isnan(dst), 0, (30 + 200 * t)).astype(np.uint8)
+    a[t <= 0.001] = 0
+    rgba[:, :, 3] = a
+    Image.fromarray(rgba, 'RGBA').save(
+        os.path.join(PNG_DIR, f'{day:%Y%m%d}_{hh:02d}.png'), optimize=True)
 
 # ── 노출·행정동 (연도 무관, 1회) ─────────────────────────────────────
 exp = pd.read_parquet(os.path.join(DERIVED, 'mask_exposure_500m.parquet'))
@@ -274,6 +319,8 @@ for YEAR in years:
             score[~is_wui] = np.nan
 
             t1 = haz_top[:, 0]
+            if DUMP_PNG:
+                dump_png(t1, day, hh)
             rows.append({
                 'date': day.date(), 'hour': hh,
                 'top1_pop': float(pop[t1 <= 1].sum()),

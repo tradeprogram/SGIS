@@ -16,7 +16,12 @@ export default function Home() {
   const [playing, setPlaying] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [timeRisk, setTimeRisk] = useState<TimeRisk | null>(null);
+  const [tl, setTl] = useState<Timeline | null>(null);
+  const [ti, setTi] = useState(0);
+  // false = 전 기간 모드(741일, 하루 한 장). true = 사례일 시간대별 상세.
+  const [detail, setDetail] = useState(false);
   const mapRef = useRef<MlMap | null>(null);
+  const stripRef = useRef<HTMLCanvasElement | null>(null);
 
   // 최초 로드 — 사례일 목록과 전 일자 공용 격자
   useEffect(() => {
@@ -31,6 +36,21 @@ export default function Home() {
     });
   }, []);
 
+  useEffect(() => {
+    fetch("/data/timeline.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((t: Timeline | null) => {
+        if (!t) return;
+        setTl(t);
+        let bi = 0;
+        t.days.forEach((x, i) => {
+          if (x.ha > t.days[bi].ha) bi = i;
+        });
+        setTi(bi);
+      })
+      .catch(() => setTl(null));
+  }, []);
+
   // 시간축 위험등급. 54번 미실행이면 파일이 없으므로 해당 블록만 숨긴다.
   useEffect(() => {
     fetch("/data/time_risk.json")
@@ -39,9 +59,41 @@ export default function Home() {
       .catch(() => setTimeRisk(null));
   }, []);
 
+  // 연도 눈금 — 741일이 2~6월만 있어 균등 분포가 아니다. 연도 첫 등장 위치를 쓴다.
+  const yearTicks = useMemo(() => {
+    const seen = new Map<string, number>();
+    (tl?.days ?? []).forEach((x, i) => {
+      const y = x.d.slice(0, 4);
+      if (!seen.has(y)) seen.set(y, i);
+    });
+    return [...seen].map(([y, i]) => ({ y, i }));
+  }, [tl]);
+
+  useEffect(() => {
+    const cv = stripRef.current;
+    if (!cv || !tl) return;
+    cv.width = tl.days.length;
+    cv.height = 1;
+    const g = cv.getContext("2d");
+    if (!g) return;
+    tl.days.forEach((x, i) => {
+      g.fillStyle = x.l ? timeLevelColor(x.l) : "#334155";
+      g.fillRect(i, 0, 1, 1);
+    });
+  }, [tl]);
+
+  const td = tl && tl.days.length ? tl.days[Math.min(ti, tl.days.length - 1)] : null;
+  const tYmd = td ? td.d.replace(/-/g, "") : null;
+
+  // 상세 모드로 들어갈 때만 그 날의 시간대별 자산을 불러온다.
+  useEffect(() => {
+    if (!detail) return;
+    if (td && td.c) setYmd(tYmd);
+  }, [detail, td, tYmd]);
+
   // 선택한 날의 자산
   useEffect(() => {
-    if (!ymd) return;
+    if (!ymd || !detail) return;
     setDay(null);
     setSel(null);
     Promise.all([
@@ -71,7 +123,12 @@ export default function Home() {
   );
 
   // 이 날 이 시각이 5년(또는 해당 연도) 분포에서 어디쯤인가
-  const tr = timeRisk && ymd ? timeRisk.days[ymd]?.[String(hour)] ?? null : null;
+  // 시간축 등급은 "그날이 5년 중 어느 정도인가"라 하루 단위 속성이다. 상세 모드에서
+  // 시각을 움직여도 바뀌지 않는다. 또 time_risk 는 스캔한 시각(8·10·11·14)만 갖고
+  // 있어서 06~18시를 그대로 넘기면 대부분 빈 값이 된다. 대표 시각 하나로 고정한다.
+  const trDate = detail ? (info?.date ?? null) : (td?.d ?? null);
+  const tr =
+    timeRisk && trDate ? timeRisk.days[trDate]?.[String(tl?.hour ?? 10)] ?? null : null;
 
   const pickCell = useCallback(
     (k: number, lon: number, lat: number) => {
@@ -126,9 +183,21 @@ export default function Home() {
         root={root}
         cells={cells}
         values={day?.values ?? null}
-        fires={day?.fires ?? []}
-        ymd={ymd}
+        fires={
+          detail
+            ? (day?.fires ?? [])
+            : (td?.ft ?? []).map((f) => ({
+                lon: f[3],
+                lat: f[4],
+                hh: f[1],
+                loc: f[0],
+                ha: f[2],
+                cells: 0,
+              }))
+        }
+        ymd={detail ? ymd : null}
         hour={hour}
+        dailyPng={detail || !tYmd ? null : `/data/daily/${tYmd}_${pad(tl?.hour ?? 10)}.png`}
         onPick={pickCell}
         onReady={(m: MlMap) => (mapRef.current = m)}
       />
@@ -150,10 +219,18 @@ export default function Home() {
           >
             <div>
               <div className="text-[10px] text-slate-400">
-                사례일 {root.days.length}일 · 신규발화 위험
+                {detail
+                  ? `시간대별 상세 · 사례일 ${root.days.length}일`
+                  : tl
+                    ? `전 기간 ${tl.days.length}일 · ${tl.note}`
+                    : "신규발화 위험"}
               </div>
               <div className="tnum text-[14px] font-semibold text-white">
-                {info?.date ?? "—"} <span className="text-accent">{pad(hour)}:00</span> KST
+                {(detail ? info?.date : td?.d) ?? "—"}{" "}
+                <span className="text-accent">
+                  {pad(detail ? hour : (tl?.hour ?? 10))}:00
+                </span>{" "}
+                KST
               </div>
             </div>
             <span className="text-[10px] text-slate-400">{pickerOpen ? "▲" : "▼"}</span>
@@ -266,22 +343,59 @@ export default function Home() {
           )}
 
           <SectionTitle className="mt-4">이 시각 전국</SectionTitle>
-          {day ? (
+          {detail ? (
+            day ? (
+              <>
+                <Row label="상위 1% 격자 노출인구" value={nf(s?.top1_pop ?? 0) + "명"} />
+                <Row label="상위 5% 격자 노출인구" value={nf(s?.top5_pop ?? 0) + "명"} />
+                <Row label="WUI ∩ 상위 5% 격자" value={nf(s?.wui_top5_cells ?? 0) + "개"} />
+                <Row label="예측 구간 실제 발화" value={hourFires.length + "건"} />
+              </>
+            ) : (
+              <div className="py-1 text-[11px] text-slate-500">불러오는 중…</div>
+            )
+          ) : td ? (
             <>
-              <Row label="상위 1% 격자 노출인구" value={nf(s?.top1_pop ?? 0) + "명"} />
-              <Row label="상위 5% 격자 노출인구" value={nf(s?.top5_pop ?? 0) + "명"} />
-              <Row label="WUI ∩ 상위 5% 격자" value={nf(s?.wui_top5_cells ?? 0) + "개"} />
-              <Row label="예측 구간 실제 발화" value={hourFires.length + "건"} />
+              <Row label="상위 1% 격자 노출인구" value={nf(td.e1) + "명"} />
+              <Row label="상위 5% 격자 노출인구" value={nf(td.e5) + "명"} />
+              <Row label="WUI ∩ 상위 5% 격자" value={nf(td.w) + "개"} />
+              <Row label="이 날 실제 발화" value={td.n === 0 ? "없음" : `${td.n}건 · ${nf(td.ha, 1)}ha`} />
             </>
           ) : (
             <div className="py-1 text-[11px] text-slate-500">불러오는 중…</div>
+          )}
+
+          {!detail && td && td.ft.length > 0 && (
+            <>
+              <SectionTitle className="mt-4">이 날 실제 발화</SectionTitle>
+              <div className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
+                예측과 별개로 그날 실제 기록된 산불입니다. 지도의 붉은 영역과 겹치는지 보세요.
+              </div>
+              {td.ft.map((f, i) => (
+                <div
+                  key={i}
+                  className="mb-1 flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1.5"
+                >
+                  <span className="tnum shrink-0 text-[10px] text-slate-400">{pad(f[1])}시</span>
+                  <span className="flex-1 truncate text-[11px] text-white">{f[0] || "—"}</span>
+                  <span className="tnum text-[10px] text-slate-300">{nf(f[2], 1)}ha</span>
+                </div>
+              ))}
+            </>
           )}
 
           <SectionTitle className="mt-4">대응 우선지역 Top 10</SectionTitle>
           <div className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
             위험 순위와 SGIS 노출인구 순위의 평균. 산림 30%·인구 10명 이상 격자(WUI) 한정.
           </div>
-          {topList.length === 0 && (
+          {!detail && (
+            <div className="mb-1 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-2 text-[10px] leading-relaxed text-slate-400">
+              전 기간 {tl?.days.length ?? 0}일은 격자 단위 값을 저장하지 않습니다(수십 GB).
+              우선지역 목록은 <b className="text-slate-300">시간대별 상세 {root.days.length}일</b>에서
+              볼 수 있습니다.
+            </div>
+          )}
+          {detail && topList.length === 0 && (
             <div className="py-1 text-[11px] text-slate-500">
               {day ? "이 시각 해당 격자 없음" : "불러오는 중…"}
             </div>
@@ -399,48 +513,130 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── 하단 타임라인 ─────────────────────────────────────── */}
+      {/* ── 하단 바 — 전 기간 스크러버 / 사례일 시간 슬라이더 ── */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-3">
-        <div className="glass pointer-events-auto mx-auto max-w-3xl px-4 py-3">
-          <div className="mb-1.5 flex items-center gap-3">
-            <button
-              onClick={() => setPlaying((p) => !p)}
-              className="pill flex h-7 w-7 items-center justify-center bg-accent/70 text-white"
-            >
-              {playing ? "❚❚" : "▶"}
-            </button>
-            <div className="text-[11px] text-slate-300">
-              시간을 움직이면 <b className="text-white">위험지도</b>와{" "}
-              <b className="text-white">SGIS 노출인구</b>가 함께 갱신됩니다
-            </div>
-            <div className="tnum ml-auto flex items-center gap-2 text-[11px] text-slate-400">
-              <span>
-                예측 대상 {pad(hour + 1)}~{pad(hour + 3)}시
-              </span>
-              {hourFires.length > 0 && (
-                <span className="rounded bg-white/15 px-1.5 py-0.5 text-white">
-                  실제 발화 {hourFires.length}건
-                </span>
-              )}
-            </div>
-          </div>
-          <input
-            type="range"
-            className="tick w-full"
-            min={0}
-            max={Math.max(0, hours.length - 1)}
-            step={1}
-            value={idx}
-            disabled={!day}
-            onChange={(e) => setHour(hours[Number(e.target.value)])}
-          />
-          <div className="tnum mt-0.5 flex justify-between text-[10px] text-slate-500">
-            {hours.map((h) => (
-              <span key={h} className={h === hour ? "font-bold text-accent" : ""}>
-                {pad(h)}
-              </span>
-            ))}
-          </div>
+        <div className="glass pointer-events-auto mx-auto max-w-4xl px-4 py-3">
+          {detail ? (
+            <>
+              <div className="mb-1.5 flex items-center gap-3">
+                <button
+                  onClick={() => setPlaying((p) => !p)}
+                  className="pill flex h-7 w-7 items-center justify-center bg-accent/70 text-white"
+                >
+                  {playing ? "❚❚" : "▶"}
+                </button>
+                <div className="text-[11px] text-slate-300">
+                  시간을 움직이면 <b className="text-white">위험지도</b>와{" "}
+                  <b className="text-white">SGIS 노출인구</b>가 함께 갱신됩니다
+                </div>
+                <button
+                  onClick={() => {
+                    setPlaying(false);
+                    setDetail(false);
+                  }}
+                  className="pill ml-auto bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 hover:bg-white/20"
+                >
+                  ← 전 기간으로
+                </button>
+              </div>
+              <input
+                type="range"
+                className="tick w-full"
+                min={0}
+                max={Math.max(0, hours.length - 1)}
+                step={1}
+                value={idx}
+                disabled={!day}
+                onChange={(e) => setHour(hours[Number(e.target.value)])}
+              />
+              <div className="tnum mt-0.5 flex justify-between text-[10px] text-slate-500">
+                {hours.map((h) => (
+                  <span key={h} className={h === hour ? "font-bold text-accent" : ""}>
+                    {pad(h)}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mb-1.5 flex items-center gap-3">
+                <div className="text-[11px] text-slate-300">
+                  {tl ? (
+                    <>
+                      <b className="text-white">{tl.days.length}일</b> 전 기간을 매일 산출했습니다.
+                      막대를 끌면 그날의 전국 위험지도가 바뀝니다
+                    </>
+                  ) : (
+                    "전 기간 불러오는 중…"
+                  )}
+                </div>
+                <div className="tnum ml-auto flex items-center gap-2 text-[11px]">
+                  {td?.l && (
+                    <span
+                      className="rounded px-1.5 py-0.5 text-white"
+                      style={{ background: timeLevelColor(td.l) + "cc" }}
+                    >
+                      {td.l}
+                    </span>
+                  )}
+                  {td && td.n > 0 && (
+                    <span className="rounded bg-white/15 px-1.5 py-0.5 text-white">
+                      실제 발화 {td.n}건
+                    </span>
+                  )}
+                  {td?.c === 1 && (
+                    <button
+                      onClick={() => setDetail(true)}
+                      className="pill bg-accent/70 px-2.5 py-1 text-[10px] text-white hover:bg-accent"
+                    >
+                      시간대별 상세 →
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 741일 위험등급 띠 — div 737개는 각 1px 미만이라 0으로 찌그러진다.
+                  하루 1픽셀로 캔버스에 그리고 CSS 로 늘린다. */}
+              <div
+                className="relative mb-1 h-5 w-full cursor-pointer overflow-hidden rounded"
+                onClick={(e) => {
+                  if (!tl) return;
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const f = (e.clientX - r.left) / r.width;
+                  setTi(Math.max(0, Math.min(tl.days.length - 1, Math.round(f * (tl.days.length - 1)))));
+                }}
+              >
+                <canvas
+                  ref={stripRef}
+                  className="h-full w-full"
+                  style={{ imageRendering: "pixelated" }}
+                />
+                {tl && (
+                  <div
+                    className="pointer-events-none absolute top-0 h-full w-[2px] bg-white shadow"
+                    style={{ left: `calc(${(ti / Math.max(1, tl.days.length - 1)) * 100}% - 1px)` }}
+                  />
+                )}
+              </div>
+              <input
+                type="range"
+                className="tick w-full"
+                min={0}
+                max={Math.max(0, (tl?.days.length ?? 1) - 1)}
+                step={1}
+                value={ti}
+                disabled={!tl}
+                onChange={(e) => setTi(Number(e.target.value))}
+              />
+              <div className="tnum mt-0.5 flex justify-between text-[10px] text-slate-500">
+                {yearTicks.map((t) => (
+                  <span key={t.y} className={t.y === td?.d.slice(0, 4) ? "font-bold text-accent" : ""}>
+                    {t.y}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </main>
@@ -482,6 +678,20 @@ function groupByYear(days: DayInfo[]): [number, DayInfo[]][] {
 
 // ─────────────── 타입 ───────────────
 type Level = { key: string; label: string; max_pct: number; color: string };
+/** 55번 산출. 741일 전 기간을 하나의 날짜축에 세운다. 하루 약 160바이트. */
+type TlDay = {
+  d: string;            // YYYY-MM-DD
+  p: number | null;     // 시간축 백분위 (5년 중 오늘의 위치)
+  l: string | null;     // 등급
+  e1: number;           // 상위 1% 격자 노출인구
+  e5: number;
+  w: number;            // WUI ∩ 상위 5% 격자 수
+  n: number;            // 그날 실제 발화 건수
+  ha: number;
+  ft: [string, number, number, number, number][]; // [지명, 시각, 피해ha, lon, lat]
+  c: 0 | 1;             // 시간대별 상세 자산 보유 여부
+};
+type Timeline = { hour: number; note: string; basis: string; levels: string[]; days: TlDay[] };
 /** 54번 산출. 지도의 공간 백분위와 달리 "5년(또는 해당 연도) 중 오늘이 몇 등인가"를 잰다. */
 type TimeRisk = {
   basis: "통합" | "연도별";
@@ -637,11 +847,13 @@ type MapProps = {
   fires: Fire[];
   ymd: string | null;
   hour: number;
+  /** 전 기간 모드에서 띄울 일별 PNG. 지정되면 사례일 시간별 PNG 대신 이걸 쓴다. */
+  dailyPng: string | null;
   onPick: (k: number, lon: number, lat: number) => void;
   onReady: (m: MlMap) => void;
 };
 
-function FireMap({ root, cells, values, fires, ymd, hour, onPick, onReady }: MapProps) {
+function FireMap({ root, cells, values, fires, ymd, hour, dailyPng, onPick, onReady }: MapProps) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
   // ref 가 아니라 state 다. 지도 구축이 데이터 로드보다 늦게 끝나는 경우가 있는데,
@@ -777,8 +989,19 @@ function FireMap({ root, cells, values, fires, ymd, hour, onPick, onReady }: Map
   // 날짜·시각 변경 → 배경 PNG와 셀 색상 갱신
   useEffect(() => {
     const m = map.current;
-    if (!m || !ready || !ymd || !values) return;
+    if (!m || !ready) return;
     const src = m.getSource("hazard") as any;
+
+    // 전 기간 모드에는 셀 단위 값이 없다(741일치 격자를 다 저장하면 수십 GB).
+    // 배경 PNG 만 갈아끼우고 벡터 셀 레이어는 숨긴다.
+    if (dailyPng) {
+      src?.updateImage?.({ url: dailyPng });
+      m.removeFeatureState({ source: "cells" });
+      if (m.getLayer("cells-fill")) m.setLayoutProperty("cells-fill", "visibility", "none");
+      return;
+    }
+    if (m.getLayer("cells-fill")) m.setLayoutProperty("cells-fill", "visibility", "visible");
+    if (!ymd || !values) return;
     src?.updateImage?.({ url: `/data/d/${ymd}/hazard_${pad(hour)}.png` });
 
     m.removeFeatureState({ source: "cells" });
@@ -789,7 +1012,7 @@ function FireMap({ root, cells, values, fires, ymd, hour, onPick, onReady }: Map
         m.setFeatureState({ source: "cells", id: v.i[k] }, { top: v.top[k] / sc });
       }
     }
-  }, [ready, ymd, hour, values]);
+  }, [ready, ymd, hour, values, dailyPng]);
 
   // 실제 발화점 갱신
   useEffect(() => {

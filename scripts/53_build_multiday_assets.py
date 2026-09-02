@@ -70,7 +70,18 @@ for d in days:
     ymd = d['date'].replace('-', '')
     need = [f'replay_{ymd}_grid.parquet', f'replay_{ymd}_full.npz',
             f'replay_{ymd}_summary.csv', f'replay_{ymd}_top.csv']
-    if all(os.path.exists(os.path.join(DERIVED, f)) for f in need):
+    # 파일 존재만 보고 건너뛰면 구버전 산출물을 그대로 쓴다. 실제로 35번 summary 에
+    # max_prob·mean_prob 를 추가한 뒤, 그 이전에 만들어진 날이 스키마 불일치로 죽었다.
+    # 필요한 컬럼까지 확인해서 없으면 다시 만든다.
+    fresh = all(os.path.exists(os.path.join(DERIVED, f)) for f in need)
+    if fresh:
+        cols = pd.read_csv(os.path.join(DERIVED, f'replay_{ymd}_summary.csv'),
+                           encoding='utf-8-sig', nrows=0).columns
+        missing = {'max_prob', 'mean_prob'} - set(cols)
+        if missing:
+            print(f'  {d["date"]}: 구버전 산출물({", ".join(sorted(missing))} 없음) → 재생성')
+            fresh = False
+    if fresh:
         print(f'  {d["date"]}: 산출물 있음 → 건너뜀')
         continue
     print(f'  {d["date"]}: replay 실행 중...')

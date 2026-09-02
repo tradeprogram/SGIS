@@ -43,3 +43,4 @@ web/tsconfig.tsbuildinfo
 outputs/chain2_log.txt
 outputs/51_scan_h*_log.txt
 outputs/53_assets_log.txt
+outputs/chain*_log.txt
