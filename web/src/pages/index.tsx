@@ -207,8 +207,10 @@ export default function Home() {
         <div className="glass pointer-events-auto flex items-center gap-2 px-3 py-2">
           <span className="text-lg">🔥</span>
           <div className="leading-tight">
-            <div className="text-[14px] font-semibold text-white">산불先지도</div>
-            <div className="text-[10px] text-slate-400">AI 발화예측 × SGIS 공간통계</div>
+            <div className="text-[13px] font-semibold leading-tight text-white">
+              산불 발화예측·우선대응 통합지도
+            </div>
+            <div className="text-[10px] leading-tight text-slate-400">SGIS 통계지리 기반 500m 격자 의사결정 시스템</div>
           </div>
         </div>
 
