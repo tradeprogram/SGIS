@@ -241,8 +241,15 @@ export default function Home() {
 
       {/* ── 헤더 ─────────────────────────────────────────────── */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start gap-3 p-3">
-        <div className="glass pointer-events-auto flex items-center gap-2 px-3 py-2">
-          <span className="text-lg">🔥</span>
+        <div className="glass hud pointer-events-auto flex items-center gap-2.5 px-3 py-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="산불 발화예측·우선대응 통합지도"
+            width={34}
+            height={34}
+            className="h-[34px] w-[34px] shrink-0 drop-shadow-[0_0_12px_rgba(239,68,68,0.45)]"
+          />
           <div className="leading-tight">
             <div className="text-[13px] font-semibold leading-tight text-white">
               산불 발화예측·우선대응 통합지도
@@ -496,7 +503,7 @@ export default function Home() {
                 style={{ background: lv.color + "26", border: "1px solid " + lv.color + "66" }}
               >
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[13px]">🔥</span>
+                  <img src="/logo.png" alt="" width={14} height={14} className="h-[14px] w-[14px]" />
                   <span className="text-[13px] font-bold" style={{ color: lv.color }}>
                     {lv.label}
                   </span>

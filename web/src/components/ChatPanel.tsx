@@ -46,12 +46,17 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
     "이 위험도를 확률로 봐도 되나요?",
     "대응 우선지역은 어떻게 정해졌나요?",
   ]);
-  const endRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
+  // scrollIntoView 를 쓰면 안 된다. 이 앱은 min-width 때문에 가로 스크롤이
+  // 생기는데, 화면 밖의 채팅 패널을 보이게 하려고 브라우저가 페이지 전체를
+  // 가로로 밀어 버린다. 접속하자마자 지도에서 밀려나는 일이 생긴다.
+  // 목록 컨테이너만 직접 내린다.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [msgs, busy]);
 
   const send = async (text: string) => {
@@ -72,13 +77,40 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
           history: msgs.slice(-8).map((m) => ({ role: m.role, text: m.text })),
         }),
       });
-      const j = await r.json();
+      // /api/chat 이 배포되지 않으면 Vercel 이 text/plain 404 를 준다. 그대로
+      // r.json() 하면 파싱 에러가 나서 "네트워크 문제"로 오진하게 된다.
+      // 상태코드와 본문을 먼저 보고 원인을 정확히 알려준다.
+      const raw = await r.text();
+      if (!r.ok) {
+        setMsgs((m) => [
+          ...m,
+          {
+            role: "agent",
+            text:
+              r.status === 404
+                ? "서버의 분석 API(/api/chat)를 찾을 수 없습니다. 배포에 API 라우트가 포함되지 않은 상태입니다."
+                : `서버가 ${r.status} 오류를 반환했습니다.`,
+            error: `http_${r.status}`,
+          },
+        ]);
+        return;
+      }
+      let j: any;
+      try {
+        j = JSON.parse(raw);
+      } catch {
+        setMsgs((m) => [
+          ...m,
+          { role: "agent", text: "서버 응답을 해석하지 못했습니다.", error: "bad_response" },
+        ]);
+        return;
+      }
       setMsgs((m) => [...m, { role: "agent", text: j.answer ?? "응답이 비어 있습니다.", error: j.error }]);
       if (Array.isArray(j.suggestions) && j.suggestions.length) setChips(j.suggestions);
-    } catch (e: any) {
+    } catch {
       setMsgs((m) => [
         ...m,
-        { role: "agent", text: "요청을 보내지 못했습니다. 네트워크를 확인해 주세요.", error: "network" },
+        { role: "agent", text: "서버에 연결하지 못했습니다. 네트워크를 확인해 주세요.", error: "network" },
       ]);
     } finally {
       setBusy(false);
@@ -106,7 +138,7 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
           </div>
         </div>
 
-        <div className="scroll-thin flex-1 space-y-2.5 overflow-y-auto px-3 py-3">
+        <div ref={listRef} className="scroll-thin flex-1 space-y-2.5 overflow-y-auto px-3 py-3">
           {msgs.map((m, i) => (
             <div
               key={i}
@@ -128,6 +160,12 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
                   AI 호출 실패 — 화면 값으로 대체했습니다.
                 </div>
               )}
+              {m.error?.startsWith("http_") && (
+                <div className="mt-1.5 text-[10px] text-rose-300/80">
+                  Vercel 프로젝트 설정에서 Framework Preset 을 Next.js 로 두고
+                  Build Command·Output Directory Override 를 끈 뒤 재배포해야 합니다.
+                </div>
+              )}
             </div>
           ))}
           {busy && (
@@ -138,7 +176,6 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
               <span>.</span>
             </div>
           )}
-          <div ref={endRef} />
         </div>
 
         <div className="border-t border-sky-400/15 bg-sky-400/[0.03] px-3 py-2.5">
@@ -159,10 +196,13 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  send(input);
-                }
+                // 한글 IME 조합 중의 Enter 는 글자를 확정하는 키다. 이걸 전송으로
+                // 받으면 "안녕하세" 같은 미완성 문장이 그대로 날아간다.
+                // isComposing 인 동안에는 무시한다.
+                if (e.key !== "Enter" || e.shiftKey) return;
+                if ((e.nativeEvent as any).isComposing || e.keyCode === 229) return;
+                e.preventDefault();
+                send(input);
               }}
               rows={1}
               placeholder="궁금한 점을 물어보세요…"

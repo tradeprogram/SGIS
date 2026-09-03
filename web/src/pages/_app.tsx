@@ -12,6 +12,8 @@ export default function App({ Component, pageProps }: AppProps) {
           content="전국 500m 격자의 향후 1~3시간 산불 발화 위험을 AI로 예측하고 SGIS 인구·가구·주택 통계를 결합해 대응 우선지역을 제시합니다."
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/logo.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
       </Head>
       <Component {...pageProps} />
     </>
