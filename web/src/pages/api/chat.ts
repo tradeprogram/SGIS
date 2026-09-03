@@ -20,9 +20,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { SYSTEM_PROMPT, localAnswer, suggestions } from "../../lib/prompt";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 const MAX_MESSAGE = 3000;
 const MAX_HISTORY = 8;
+
+// Vercel 기본 함수 타임아웃은 10초다. Gemini 응답이 그보다 오래 걸리는 경우가
+// 있어 늘려 둔다. Hobby 플랜 상한은 60초다.
+export const config = { maxDuration: 30 };
 
 type Body = {
   message?: string;
