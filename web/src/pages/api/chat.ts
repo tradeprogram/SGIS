@@ -23,6 +23,8 @@ const BASE = "https://generativelanguage.googleapis.com/v1beta";
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 const MAX_MESSAGE = 3000;
 const MAX_HISTORY = 8;
+// maxDuration(30초)보다 넉넉히 짧게. 우리가 먼저 끊어야 원인을 알려줄 수 있다.
+const CALL_TIMEOUT_MS = 20000;
 
 // Vercel 기본 함수 타임아웃은 10초다. Gemini 응답이 그보다 오래 걸리는 경우가
 // 있어 늘려 둔다. Hobby 플랜 상한은 60초다.
@@ -39,6 +41,16 @@ function apiKey(): string | null {
   return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
 }
 
+/** 이 키로 실제 쓸 수 있는 모델 목록. 모델명이 맞는지 확인하는 용도. */
+async function listModels(key: string): Promise<string[]> {
+  const r = await fetch(`${BASE}/models?key=${key}&pageSize=200`);
+  if (!r.ok) throw new Error(`ListModels ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const j = await r.json();
+  return (j?.models ?? [])
+    .filter((m: any) => (m?.supportedGenerationMethods ?? []).includes("generateContent"))
+    .map((m: any) => String(m?.name ?? "").replace(/^models\//, ""));
+}
+
 async function callGemini(key: string, body: Body): Promise<string> {
   // policymaps 와 동일하게 지시·질문·컨텍스트를 한 덩어리 JSON 으로 넘긴다.
   // 모델이 화면 밖 지식으로 빠지지 않게 "여기 있는 값만 쓰라"고 못박는다.
@@ -53,14 +65,28 @@ async function callGemini(key: string, body: Body): Promise<string> {
       "screen_context 에 없는 수치는 지어내지 말 것.",
   };
 
-  const r = await fetch(`${BASE}/models/${MODEL}:generateContent?key=${key}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: JSON.stringify(payload, null, 1) }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 1200 },
-    }),
-  });
+  // 함수 타임아웃(504)에 도달하기 전에 우리가 먼저 끊는다. 504 가 나면
+  // 브라우저에는 그냥 fetch 실패로 보여서 원인을 알 수 없게 된다.
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), CALL_TIMEOUT_MS);
+  let r: Response;
+  try {
+    r = await fetch(`${BASE}/models/${MODEL}:generateContent?key=${key}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      signal: ac.signal,
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: JSON.stringify(payload, null, 1) }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 1200 },
+      }),
+    });
+  } catch (e: any) {
+    if (e?.name === "AbortError")
+      throw new Error(`Gemini 응답이 ${CALL_TIMEOUT_MS / 1000}초 안에 오지 않았습니다 (model=${MODEL})`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!r.ok) throw new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const j = await r.json();
@@ -70,6 +96,28 @@ async function callGemini(key: string, body: Body): Promise<string> {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // GET /api/chat?diag=1 — 배포된 환경에서 무엇이 잘못됐는지 바로 본다.
+  // 키 자체는 절대 내보내지 않고, 존재 여부와 사용 가능한 모델명만 돌려준다.
+  if (req.method === "GET") {
+    const key = apiKey();
+    const out: Record<string, unknown> = {
+      hasKey: !!key,
+      keySource: process.env.GEMINI_API_KEY ? "GEMINI_API_KEY" : process.env.GOOGLE_API_KEY ? "GOOGLE_API_KEY" : null,
+      configuredModel: MODEL,
+      callTimeoutMs: CALL_TIMEOUT_MS,
+    };
+    if (key && req.query.diag) {
+      try {
+        const models = await listModels(key);
+        out.modelIsAvailable = models.includes(MODEL);
+        out.availableModels = models;
+      } catch (e: any) {
+        out.listModelsError = String(e?.message ?? e).slice(0, 300);
+      }
+    }
+    res.status(200).json(out);
+    return;
+  }
   if (req.method !== "POST") {
     res.status(405).json({ error: "method_not_allowed" });
     return;
