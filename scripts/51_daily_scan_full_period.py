@@ -21,21 +21,19 @@ t+1~t+3h로 12~17시를 덮는다. 하루 2시각이면 747일 × 2 = 1,494회 �
   ignition_ranks.csv            발화 사건별 예측 순위 (성과지표 원자료)
 """
 
-import os, glob, re, time, pickle
+import os, glob, re, time
 import numpy as np
 import pandas as pd
 import rasterio
 from rasterio.transform import rowcol
-import joblib
-import torch
-import torch.nn as nn
 import pyproj
 from PIL import Image
 from matplotlib.colors import LinearSegmentedColormap
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 
+import _stage2_model as S2
+
 NAS     = r'V:\data'
-MDL_DIR = r'C:\for_sgis\models'
 DERIVED = r'C:\for_sgis\data\grid_data\derived'
 MASK    = NAS + r'\mask\common_mask_500m_5179.tif'
 OUT_DIR = os.path.join(DERIVED, 'daily_scan')
@@ -50,10 +48,6 @@ HORIZONS      = [1, 2, 3]
 
 os.makedirs(OUT_DIR, exist_ok=True)
 t_all = time.time()
-
-
-def fold_of(year: int) -> int:
-    return YEARS_ALL.index(year) + 1
 
 
 with rasterio.open(MASK) as src:
@@ -161,23 +155,9 @@ for YEAR in years:
         print(f'\n{YEAR}: 이미 있음 → 건너뜀 ({out_path})')
         continue
 
-    fno = fold_of(YEAR)
-    tag = f'gru_ign_fold{fno}_test{YEAR}'
-    lgbm_path = NAS + rf'\ml_results\exp_no_smap_spi_temp_4v1\lgbm_models\lgbm_fold{fno}_test{YEAR}.pkl'
-    for pth in (lgbm_path, os.path.join(MDL_DIR, f'{tag}_body.pt')):
-        if not os.path.exists(pth):
-            raise SystemExit(f'모델 없음: {pth}\n  → 24번에서 fold {fno} 저장 여부 확인')
-
-    print(f"\n{'='*70}\n{YEAR}년 스캔 — {tag} (그 해를 학습에서 제외한 fold)\n{'='*70}")
-    lgbm = joblib.load(lgbm_path)
-    with open(os.path.join(MDL_DIR, f'{tag}_scaler.pkl'), 'rb') as f:
-        scaler = pickle.load(f)
-    enc = nn.GRU(2, 64, num_layers=2, batch_first=True, dropout=0.3)
-    head = nn.Sequential(nn.Linear(64 + 7, 64), nn.ReLU(), nn.Dropout(0.3),
-                         nn.Linear(64, len(HORIZONS)), nn.Sigmoid())
-    enc.load_state_dict(torch.load(os.path.join(MDL_DIR, f'{tag}_body.pt'), map_location='cpu'))
-    head.load_state_dict(torch.load(os.path.join(MDL_DIR, f'{tag}_head.pt'), map_location='cpu'))
-    enc.eval(); head.eval()
+    fno = S2.fold_of(YEAR)
+    print(f"\n{'='*70}\n{YEAR}년 스캔 (그 해를 학습에서 제외한 fold {fno})\n{'='*70}")
+    lgbm, _scaler, infer, _desc = S2.load(YEAR)
 
     # 연도 고정 피처는 해마다 1회만 읽는다
     _c = {}
@@ -298,15 +278,7 @@ for YEAR in years:
                                   np.nan_to_num(feat['ndmi']), np.nan_to_num(feat['hum4d']),
                                   np.nan_to_num(feat['prcp4d']), feat['doy_sin'],
                                   feat['doy_cos']]).astype(np.float32)
-            allf = scaler.transform(np.concatenate([np.stack([sv, sw], -1).reshape(n, -1), st], axis=1))
-            seq_s = allf[:, :24].reshape(n, 12, 2).astype(np.float32)
-            st_s = allf[:, 24:].astype(np.float32)
-
-            probs = np.zeros((n, 3), np.float32)
-            with torch.no_grad():
-                for i in range(0, n, 16384):
-                    o, _ = enc(torch.tensor(seq_s[i:i+16384]))
-                    probs[i:i+16384] = head(torch.cat([o[:, -1, :], torch.tensor(st_s[i:i+16384])], 1)).numpy()
+            probs = infer(np.stack([sv, sw], -1), st, chunk=16384)
             probs[~ok] = np.nan
 
             # 위험 백분위 (0 = 전국 1위)
@@ -356,16 +328,30 @@ for YEAR in years:
     print(f'{YEAR} 완료: {len(rows)}개 시각-일, 발화순위 {len(rank_rows)}건 → {out_path}')
 
 # ── 통합 ─────────────────────────────────────────────────────────────
-sc = sorted(glob.glob(os.path.join(OUT_DIR, 'daily_scan_*.parquet')))
-rk = sorted(glob.glob(os.path.join(OUT_DIR, 'ignition_ranks_*.parquet')))
-# 접미사 실행(OUT_SUFFIX)이 있으면 파일 수가 연도 수보다 많아진다.
-# 파일 개수가 아니라 "모든 연도가 하나 이상 있는가"로 판단한다.
+# 어떤 접미사를 한 덩어리로 합칠지 명시한다. glob 로 전부 긁으면 모델이 다른
+# A/B 산출물(_cnn20 등)까지 섞여 들어가 통합 CSV 가 조용히 오염된다.
+#   OUT_SUFFIX 없음 → 기본 스캔(접미사 없음) + 추가 시각(_h08/_h10) 을 합친다
+#   OUT_SUFFIX 있음 → 그 접미사끼리만 합치고, 결과도 접미사를 달고 나간다
+MERGE_SUFFIXES = ([SUFFIX] if SUFFIX
+                  else os.environ.get('MERGE_SUFFIXES', ',_h08,_h10').split(','))
+
+
+def _in_set(path: str, kind: str) -> bool:
+    stem = os.path.splitext(os.path.basename(path))[0]
+    return any(stem == f'{kind}_{y}{s}' for y in YEARS_ALL for s in MERGE_SUFFIXES)
+
+
+sc = sorted(f for f in glob.glob(os.path.join(OUT_DIR, 'daily_scan_*.parquet'))
+            if _in_set(f, 'daily_scan'))
+rk = sorted(f for f in glob.glob(os.path.join(OUT_DIR, 'ignition_ranks_*.parquet'))
+            if _in_set(f, 'ignition_ranks'))
 have = {y for y in YEARS_ALL if any(f'daily_scan_{y}' in os.path.basename(f) for f in sc)}
 if have == set(YEARS_ALL):
+    print(f'\n통합 대상 {len(sc)}개 파일 (접미사 {MERGE_SUFFIXES})')
     d = pd.concat([pd.read_parquet(f) for f in sc], ignore_index=True)
-    d.to_csv(os.path.join(DERIVED, 'daily_scan_all.csv'), index=False, encoding='utf-8-sig')
+    d.to_csv(os.path.join(DERIVED, f'daily_scan_all{SUFFIX}.csv'), index=False, encoding='utf-8-sig')
     r = pd.concat([pd.read_parquet(f) for f in rk], ignore_index=True)
-    r.to_csv(os.path.join(DERIVED, 'ignition_ranks.csv'), index=False, encoding='utf-8-sig')
+    r.to_csv(os.path.join(DERIVED, f'ignition_ranks{SUFFIX}.csv'), index=False, encoding='utf-8-sig')
     print(f'\n통합: 일별 {len(d):,}행 / 발화순위 {len(r):,}행')
     best = r.groupby('fire_id')['haz_top_pct'].min()
     print(f'\n발화 사건 {len(best):,}건의 최선 순위 분포:')

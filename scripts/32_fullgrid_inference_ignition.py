@@ -1,11 +1,12 @@
 """
-신규발화 GRU 전국 500m 격자 추론 (t+1h/t+2h/t+3h).
+신규발화 2단 모델 전국 500m 격자 추론 (t+1h/t+2h/t+3h).
 
 model2/scripts/full_grid_inference_gru_multih.py를 신규발화 모델용으로 이식.
 바뀐 점
   - 모델: 대상 연도에 맞는 fold를 자동 선택 (2022년 → fold2)
   - TARGET_DT를 환경변수로 파라미터화 (사례 replay를 여러 시각에 돌리기 위함)
   - 출력 경로를 derived/ 로 통일
+  - Stage1/Stage2 로드는 _stage2_model.py 로 이관 (v4b: LGBM 1:20 + CNN 1:20)
 
 시각 규약 (12_build_seq_dataset_4v1.py와 동일)
   vpd_t0    = TARGET_DT - 1h 래스터
@@ -17,16 +18,14 @@ model2/scripts/full_grid_inference_gru_multih.py를 신규발화 모델용으로
       LightGBM Stage1도 같은 fold 번호를 쓴다.
 """
 
-import os, glob, re, time, pickle
+import os, glob, re, time
 import numpy as np
 import pandas as pd
 import rasterio
-import joblib
-import torch
-import torch.nn as nn
+
+import _stage2_model as S2
 
 NAS       = r'V:\data'
-MDL_DIR   = r'C:\for_sgis\models'
 OUT_DIR   = r'C:\for_sgis\data\grid_data\derived'
 HORIZONS  = [1, 2, 3]
 
@@ -34,20 +33,12 @@ TARGET_DT = pd.Timestamp(os.environ.get('TARGET_DT', '2025-03-22 12:00'))
 YEAR      = TARGET_DT.year
 # 연도 → fold 자동 선택. 그 해를 학습에서 뺀 모델을 써야 누수가 없다.
 #   2021→fold1, 2022→fold2, 2023→fold3, 2024→fold4, 2025→fold5
-YEARS = [2021, 2022, 2023, 2024, 2025]
-def fold_of(year: int) -> int:
-    if year not in YEARS:
-        raise SystemExit(f'지원 연도 아님: {year} (2021~2025)')
-    return YEARS.index(year) + 1
-
 FOLD_YEAR = YEAR
-FOLD_NO   = fold_of(YEAR)
-TAG       = f'gru_ign_fold{FOLD_NO}_test{FOLD_YEAR}'
+FOLD_NO   = S2.fold_of(YEAR)
 
 os.makedirs(OUT_DIR, exist_ok=True)
 t0 = time.time()
 print(f'대상 시각: {TARGET_DT}  → 예측 {[f"t+{h}h" for h in HORIZONS]}')
-print(f'모델: 신규발화 GRU {TAG} — {FOLD_YEAR}년을 학습에서 제외한 fold')
 
 with rasterio.open(NAS + r'\mask\common_mask_500m_5179.tif') as src:
     mask_arr  = src.read(1)
@@ -149,7 +140,7 @@ X = np.column_stack([feat[c] for c in FEATURE_COLS]).astype(np.float32)
 valid_mask = ~np.isnan(X).any(axis=1)
 print(f'입력 결측 제외 후 유효: {valid_mask.sum():,} / {n_valid:,}')
 
-lgbm = joblib.load(NAS + rf'\ml_results\exp_no_smap_spi_temp_4v1\lgbm_models\lgbm_fold{FOLD_NO}_test{FOLD_YEAR}.pkl')
+lgbm, _scaler, infer, _desc = S2.load(FOLD_YEAR)
 P_lgbm = np.full(n_valid, np.nan, np.float32)
 P_lgbm[valid_mask] = lgbm.predict_proba(X[valid_mask])[:, 1]
 print(f'P_lgbm 평균 {np.nanmean(P_lgbm):.4f}  최대 {np.nanmax(P_lgbm):.4f}')
@@ -189,29 +180,7 @@ static_full = np.column_stack([
     feat['doy_sin'], feat['doy_cos'],
 ]).astype(np.float32)
 
-with open(os.path.join(MDL_DIR, f'{TAG}_scaler.pkl'), 'rb') as f:
-    scaler = pickle.load(f)
-allf = np.concatenate([seq_full.reshape(n_valid, -1), static_full], axis=1)
-alls = scaler.transform(allf)
-seq_scaled    = alls[:, :24].reshape(n_valid, 12, 2).astype(np.float32)
-static_scaled = alls[:, 24:].astype(np.float32)
-
-N_OUT = len(HORIZONS)
-gru_enc = nn.GRU(2, 64, num_layers=2, batch_first=True, dropout=0.3)
-gru_head = nn.Sequential(nn.Linear(64 + 7, 64), nn.ReLU(), nn.Dropout(0.3),
-                         nn.Linear(64, N_OUT), nn.Sigmoid())
-gru_enc.load_state_dict(torch.load(os.path.join(MDL_DIR, f'{TAG}_body.pt'), map_location='cpu'))
-gru_head.load_state_dict(torch.load(os.path.join(MDL_DIR, f'{TAG}_head.pt'), map_location='cpu'))
-gru_enc.eval(); gru_head.eval()
-
-probs = np.zeros((n_valid, N_OUT), np.float32)
-with torch.no_grad():
-    for i in range(0, n_valid, 8192):
-        s  = torch.tensor(seq_scaled[i:i+8192])
-        st = torch.tensor(static_scaled[i:i+8192])
-        out, _ = gru_enc(s)
-        probs[i:i+8192] = gru_head(torch.cat([out[:, -1, :], st], 1)).numpy()
-
+probs = infer(seq_full, static_full)
 probs[~valid_mask] = np.nan
 for k, H in enumerate(HORIZONS):
     v = probs[:, k]
