@@ -50,3 +50,5 @@ models_v4/*.pt
 outputs/v4/cnn_v4_spatial_pred_*.csv
 data/ml_dataset/*.parquet
 data/ref/*.xlsx
+models_v4/*.pkl
+outputs/v4/*.csv
