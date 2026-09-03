@@ -21,10 +21,19 @@ import { SYSTEM_PROMPT, localAnswer, suggestions } from "../../lib/prompt";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+// 기본 모델이 과부하(503 UNAVAILABLE)일 때 순서대로 시도할 대체 모델.
+// 실제로 gemini-3.6-flash 가 "high demand" 로 거절하는 일이 있었다.
+const FALLBACK_MODELS = (process.env.GEMINI_FALLBACK_MODELS ?? "gemini-3.5-flash,gemini-flash-latest")
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
 const MAX_MESSAGE = 3000;
 const MAX_HISTORY = 8;
 // maxDuration(30초)보다 넉넉히 짧게. 우리가 먼저 끊어야 원인을 알려줄 수 있다.
-const CALL_TIMEOUT_MS = 20000;
+const CALL_TIMEOUT_MS = 20000;   // 전체 예산
+const ATTEMPT_TIMEOUT_MS = 9000; // 한 번의 호출
+// 다시 걸어 볼 가치가 있는 상태코드. 503 은 모델 혼잡, 429 는 레이트리밋.
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
 // Vercel 기본 함수 타임아웃은 10초다. Gemini 응답이 그보다 오래 걸리는 경우가
 // 있어 늘려 둔다. Hobby 플랜 상한은 60초다.
@@ -51,7 +60,43 @@ async function listModels(key: string): Promise<string[]> {
     .map((m: any) => String(m?.name ?? "").replace(/^models\//, ""));
 }
 
-async function callGemini(key: string, body: Body): Promise<string> {
+type Attempt = { model: string; ok: boolean; status?: number; note?: string };
+
+/** 한 모델에 한 번 호출. 재시도 판단은 호출한 쪽에서 한다. */
+async function once(key: string, model: string, payload: unknown, budgetMs: number) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), Math.min(ATTEMPT_TIMEOUT_MS, budgetMs));
+  try {
+    const r = await fetch(`${BASE}/models/${model}:generateContent?key=${key}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      signal: ac.signal,
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: JSON.stringify(payload, null, 1) }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 1200 },
+      }),
+    });
+    if (!r.ok) return { status: r.status, body: (await r.text()).slice(0, 200) };
+    const j = await r.json();
+    const text =
+      j?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
+    return text.trim() ? { text: text.trim() } : { status: 200, body: "빈 응답" };
+  } catch (e: any) {
+    return { status: e?.name === "AbortError" ? 504 : 0, body: String(e?.message ?? e).slice(0, 200) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 기본 모델 → 대체 모델 순으로 시도한다.
+ *
+ * 실제로 gemini-3.6-flash 가 503 UNAVAILABLE("high demand")로 거절하는 일이
+ * 있었고, 거절 응답이 오는 데만 10초가 걸렸다. 모델 하나에 매달리면 사용자는
+ * 매번 폴백 답변만 보게 된다. 재시도 가능한 상태코드면 짧게 한 번 더 걸어 보고,
+ * 그래도 안 되면 다음 모델로 넘어간다. 전체는 CALL_TIMEOUT_MS 예산 안에서만.
+ */
+async function callGemini(key: string, body: Body) {
   // policymaps 와 동일하게 지시·질문·컨텍스트를 한 덩어리 JSON 으로 넘긴다.
   // 모델이 화면 밖 지식으로 빠지지 않게 "여기 있는 값만 쓰라"고 못박는다.
   const payload = {
@@ -65,34 +110,31 @@ async function callGemini(key: string, body: Body): Promise<string> {
       "screen_context 에 없는 수치는 지어내지 말 것.",
   };
 
-  // 함수 타임아웃(504)에 도달하기 전에 우리가 먼저 끊는다. 504 가 나면
-  // 브라우저에는 그냥 fetch 실패로 보여서 원인을 알 수 없게 된다.
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), CALL_TIMEOUT_MS);
-  let r: Response;
-  try {
-    r = await fetch(`${BASE}/models/${MODEL}:generateContent?key=${key}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      signal: ac.signal,
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: JSON.stringify(payload, null, 1) }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 1200 },
-      }),
-    });
-  } catch (e: any) {
-    if (e?.name === "AbortError")
-      throw new Error(`Gemini 응답이 ${CALL_TIMEOUT_MS / 1000}초 안에 오지 않았습니다 (model=${MODEL})`);
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+  const deadline = Date.now() + CALL_TIMEOUT_MS;
+  const trace: Attempt[] = [];
 
-  if (!r.ok) throw new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 300)}`);
-  const j = await r.json();
-  const text = j?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
-  if (!text.trim()) throw new Error("빈 응답");
-  return text.trim();
+  for (const model of [MODEL, ...FALLBACK_MODELS]) {
+    for (let tryNo = 0; tryNo < 2; tryNo++) {
+      const left = deadline - Date.now();
+      if (left < 1500) {
+        trace.push({ model, ok: false, note: "시간 예산 소진" });
+        throw Object.assign(new Error("남은 시간 안에 응답을 받지 못했습니다"), { trace });
+      }
+      const r: any = await once(key, model, payload, left);
+      if (r.text) {
+        trace.push({ model, ok: true });
+        return { text: r.text as string, model, trace };
+      }
+      trace.push({ model, ok: false, status: r.status, note: r.body });
+      if (!RETRYABLE.has(r.status)) break;   // 재시도 무의미 — 다음 모델로
+      if (tryNo === 0) await new Promise((res) => setTimeout(res, 600));
+    }
+  }
+  const last = trace[trace.length - 1];
+  throw Object.assign(
+    new Error(`모든 모델 실패 (마지막: ${last?.model} ${last?.status ?? ""} ${last?.note ?? ""})`),
+    { trace }
+  );
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -136,14 +178,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    res.status(200).json({ answer: await callGemini(key, body), model: MODEL, suggestions: sug });
+    const g = await callGemini(key, body);
+    res.status(200).json({
+      answer: g.text,
+      model: g.model,
+      // 기본 모델이 아니라 대체 모델로 답한 경우 화면에 알린다.
+      fallbackModel: g.model !== MODEL ? MODEL : undefined,
+      suggestions: sug,
+    });
   } catch (e: any) {
     // 채팅창을 죽이지 않는다. 폴백 답변과 함께 원인을 같이 내려보낸다.
+    const overloaded = (e?.trace ?? []).some((t: any) => t.status === 503);
     res.status(200).json({
       answer: localAnswer(body.message || "", body.context),
       suggestions: sug,
-      error: "llm_failed",
+      error: overloaded ? "llm_overloaded" : "llm_failed",
       detail: String(e?.message ?? e).slice(0, 300),
+      trace: e?.trace,
     });
   }
 }

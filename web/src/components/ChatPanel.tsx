@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type Msg = { role: "user" | "agent"; text: string; error?: string };
+type Msg = { role: "user" | "agent"; text: string; error?: string; usedModel?: string };
 
 export type ChatContext = {
   mode: "timeline" | "detail";
@@ -47,6 +47,7 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
     "대응 우선지역은 어떻게 정해졌나요?",
   ]);
   const listRef = useRef<HTMLDivElement>(null);
+  const lastQ = useRef("");
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
@@ -63,6 +64,7 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
     const q = text.trim();
     if (!q || busy) return;
     setInput("");
+    lastQ.current = q;
     setMsgs((m) => [...m, { role: "user", text: q }]);
     setBusy(true);
     try {
@@ -105,7 +107,10 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
         ]);
         return;
       }
-      setMsgs((m) => [...m, { role: "agent", text: j.answer ?? "응답이 비어 있습니다.", error: j.error }]);
+      setMsgs((m) => [
+        ...m,
+        { role: "agent", text: j.answer ?? "응답이 비어 있습니다.", error: j.error, usedModel: j.fallbackModel ? j.model : undefined },
+      ]);
       if (Array.isArray(j.suggestions) && j.suggestions.length) setChips(j.suggestions);
     } catch {
       setMsgs((m) => [
@@ -158,6 +163,23 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
               {m.error === "llm_failed" && (
                 <div className="mt-1.5 text-[10px] text-amber-300/80">
                   AI 호출 실패 — 화면 값으로 대체했습니다.
+                </div>
+              )}
+              {m.error === "llm_overloaded" && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-amber-300/80">
+                  <span>모델이 일시적으로 혼잡합니다(구글 측 503). 화면 값으로 대체했습니다.</span>
+                  <button
+                    onClick={() => send(lastQ.current)}
+                    disabled={busy}
+                    className="pill border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] text-amber-200 hover:bg-amber-300/20 disabled:opacity-40"
+                  >
+                    다시 시도
+                  </button>
+                </div>
+              )}
+              {m.usedModel && (
+                <div className="mt-1.5 text-[10px] text-sky-300/60">
+                  기본 모델 혼잡으로 {m.usedModel} 로 답했습니다.
                 </div>
               )}
               {m.error?.startsWith("http_") && (
