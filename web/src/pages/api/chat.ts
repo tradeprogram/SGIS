@@ -30,10 +30,14 @@ const FALLBACK_MODELS = (process.env.GEMINI_FALLBACK_MODELS ?? "gemini-3.5-flash
 const MAX_MESSAGE = 3000;
 const MAX_HISTORY = 8;
 // maxDuration(30초)보다 넉넉히 짧게. 우리가 먼저 끊어야 원인을 알려줄 수 있다.
-const CALL_TIMEOUT_MS = 20000;   // 전체 예산
-const ATTEMPT_TIMEOUT_MS = 9000; // 한 번의 호출
-// 다시 걸어 볼 가치가 있는 상태코드. 503 은 모델 혼잡, 429 는 레이트리밋.
-const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+const CALL_TIMEOUT_MS = 25000;   // 전체 예산 (maxDuration 30초)
+const ATTEMPT_MAX_MS = 11000;    // 한 번의 호출 상한
+const ATTEMPT_MIN_MS = 5000;     // 그 아래로는 걸 의미가 없다
+// 서버가 "지금은 안 되니 나중에" 라고 답한 경우만 같은 모델로 다시 건다.
+// 우리 쪽 타임아웃(느린 모델)은 다시 걸어도 또 느리다 — 재시도가 아니라
+// 다음 모델로 넘어가야 한다. 실제로 3.6-flash 를 두 번 기다리다 예산을
+// 다 써서 대체 모델이 실행조차 못 된 적이 있다.
+const RETRYABLE = new Set([429, 500, 502, 503]);
 
 // Vercel 기본 함수 타임아웃은 10초다. Gemini 응답이 그보다 오래 걸리는 경우가
 // 있어 늘려 둔다. Hobby 플랜 상한은 60초다.
@@ -65,7 +69,7 @@ type Attempt = { model: string; ok: boolean; status?: number; note?: string };
 /** 한 모델에 한 번 호출. 재시도 판단은 호출한 쪽에서 한다. */
 async function once(key: string, model: string, payload: unknown, budgetMs: number) {
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), Math.min(ATTEMPT_TIMEOUT_MS, budgetMs));
+  const timer = setTimeout(() => ac.abort(), Math.min(ATTEMPT_MAX_MS, budgetMs));
   try {
     const r = await fetch(`${BASE}/models/${model}:generateContent?key=${key}`, {
       method: "POST",
@@ -111,23 +115,33 @@ async function callGemini(key: string, body: Body) {
   };
 
   const deadline = Date.now() + CALL_TIMEOUT_MS;
+  const chain = [MODEL, ...FALLBACK_MODELS];
   const trace: Attempt[] = [];
 
-  for (const model of [MODEL, ...FALLBACK_MODELS]) {
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i];
+    // 남은 예산을 남은 모델 수로 나눠 배분한다. 앞 모델이 예산을 독식해
+    // 뒤 모델이 기회를 못 받는 일을 막는다.
+    const left = deadline - Date.now();
+    const share = Math.floor(left / (chain.length - i));
+    if (left < ATTEMPT_MIN_MS) {
+      trace.push({ model, ok: false, note: "시간 예산 소진" });
+      break;
+    }
+    const budget = Math.min(ATTEMPT_MAX_MS, Math.max(ATTEMPT_MIN_MS, share));
+
     for (let tryNo = 0; tryNo < 2; tryNo++) {
-      const left = deadline - Date.now();
-      if (left < 1500) {
-        trace.push({ model, ok: false, note: "시간 예산 소진" });
-        throw Object.assign(new Error("남은 시간 안에 응답을 받지 못했습니다"), { trace });
-      }
-      const r: any = await once(key, model, payload, left);
+      const r: any = await once(key, model, payload, Math.min(budget, deadline - Date.now()));
       if (r.text) {
         trace.push({ model, ok: true });
         return { text: r.text as string, model, trace };
       }
       trace.push({ model, ok: false, status: r.status, note: r.body });
-      if (!RETRYABLE.has(r.status)) break;   // 재시도 무의미 — 다음 모델로
-      if (tryNo === 0) await new Promise((res) => setTimeout(res, 600));
+      // 느려서 우리가 끊은 경우(504)는 다시 걸지 않는다. 다음 모델로.
+      if (!RETRYABLE.has(r.status)) break;
+      if (tryNo === 0 && deadline - Date.now() > ATTEMPT_MIN_MS + 600) {
+        await new Promise((res) => setTimeout(res, 600));
+      } else break;
     }
   }
   const last = trace[trace.length - 1];
@@ -188,11 +202,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (e: any) {
     // 채팅창을 죽이지 않는다. 폴백 답변과 함께 원인을 같이 내려보낸다.
-    const overloaded = (e?.trace ?? []).some((t: any) => t.status === 503);
+    const tr = e?.trace ?? [];
+    const overloaded = tr.some((t: any) => t.status === 503 || t.status === 429);
+    const tooSlow = tr.some((t: any) => t.status === 504);
     res.status(200).json({
       answer: localAnswer(body.message || "", body.context),
       suggestions: sug,
-      error: overloaded ? "llm_overloaded" : "llm_failed",
+      error: overloaded ? "llm_overloaded" : tooSlow ? "llm_slow" : "llm_failed",
       detail: String(e?.message ?? e).slice(0, 300),
       trace: e?.trace,
     });

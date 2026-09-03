@@ -165,6 +165,18 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
                   AI 호출 실패 — 화면 값으로 대체했습니다.
                 </div>
               )}
+              {m.error === "llm_slow" && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-amber-300/80">
+                  <span>AI 응답이 제한 시간 안에 오지 않아 화면 값으로 대체했습니다.</span>
+                  <button
+                    onClick={() => send(lastQ.current)}
+                    disabled={busy}
+                    className="pill border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] text-amber-200 hover:bg-amber-300/20 disabled:opacity-40"
+                  >
+                    다시 시도
+                  </button>
+                </div>
+              )}
               {m.error === "llm_overloaded" && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-amber-300/80">
                   <span>모델이 일시적으로 혼잡합니다(구글 측 503). 화면 값으로 대체했습니다.</span>
