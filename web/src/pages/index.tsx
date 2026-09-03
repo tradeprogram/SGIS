@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ChatPanel, { type ChatContext } from "../components/ChatPanel";
 
 type MlMap = any;
 
@@ -126,6 +127,40 @@ export default function Home() {
   // 시간축 등급은 "그날이 5년 중 어느 정도인가"라 하루 단위 속성이다. 상세 모드에서
   // 시각을 움직여도 바뀌지 않는다. 또 time_risk 는 스캔한 시각(8·10·11·14)만 갖고
   // 있어서 06~18시를 그대로 넘기면 대부분 빈 값이 된다. 대표 시각 하나로 고정한다.
+  const chatCtx: ChatContext = useMemo(
+    () => ({
+      mode: detail ? "detail" : "timeline",
+      hour: detail ? hour : (tl?.hour ?? 10),
+      day: detail
+        ? info
+          ? {
+              date: info.date, level: null, topPct: null,
+              e1: Math.round(s?.top1_pop ?? 0), e5: Math.round(s?.top5_pop ?? 0),
+              wui: s?.wui_top5_cells ?? 0, n: info.n_fire, ha: info.ha,
+              fires: (day?.fires ?? []).map((f) => ({ loc: f.loc, hh: f.hh, ha: f.ha })),
+            }
+          : null
+        : td
+          ? {
+              // 화면 표기와 같은 방향으로 넘긴다. 원값(td.p)은 아래에서부터의
+              // 백분위라 그대로 주면 모델이 정반대로 읽는다.
+              date: td.d, level: td.l, topPct: td.p == null ? null : Math.round((100 - td.p) * 10) / 10,
+              e1: td.e1, e5: td.e5, wui: td.w, n: td.n, ha: td.ha,
+              fires: td.ft.map((f) => ({ loc: f[0], hh: f[1], ha: f[2] })),
+            }
+          : null,
+      priority: detail
+        ? topList.slice(0, 10).map((t, i) => ({
+            rank: i + 1, name: t.nm, topPct: t.top, pop: t.pop,
+          }))
+        : undefined,
+      cell: sel
+        ? { name: sel.nm, topPct: sel.top, pop: sel.pop, signals: sel.sig ?? null }
+        : null,
+    }),
+    [detail, hour, tl, info, s, day, td, topList, sel]
+  );
+
   const trDate = detail ? (info?.date ?? null) : (td?.d ?? null);
   const tr =
     timeRisk && trDate ? timeRisk.days[trDate]?.[String(tl?.hour ?? 10)] ?? null : null;
@@ -201,6 +236,8 @@ export default function Home() {
         onPick={pickCell}
         onReady={(m: MlMap) => (mapRef.current = m)}
       />
+
+      <ChatPanel ctx={chatCtx} />
 
       {/* ── 헤더 ─────────────────────────────────────────────── */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start gap-3 p-3">
@@ -434,7 +471,7 @@ export default function Home() {
 
       {/* ── 우측 패널 ─────────────────────────────────────────── */}
       {sel && (
-        <div className="pointer-events-none absolute right-3 top-[4.75rem] z-10 w-[272px]">
+        <div className="pointer-events-none absolute right-3 top-[4.75rem] z-10 w-[272px] xl:right-[384px]">
           <div className="glass pointer-events-auto p-3">
             <div className="mb-2 flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -516,7 +553,8 @@ export default function Home() {
       )}
 
       {/* ── 하단 바 — 전 기간 스크러버 / 사례일 시간 슬라이더 ── */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-3">
+      {/* 채팅 패널(360px + 여백)이 열리는 xl 이상에서는 그만큼 비켜 준다 */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-20 p-3 xl:right-[384px]">
         <div className="glass pointer-events-auto mx-auto max-w-4xl px-4 py-3">
           {detail ? (
             <>
