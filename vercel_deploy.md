@@ -1,7 +1,7 @@
 # Vercel 배포 절차
 
 ## 1. 프로젝트 임포트
-1. https://vercel.com/new 에서 `tradeprogram/SGIS` 선택
+1. https://vercel.com/new 에서 `tradeprogram/wildfire_predict_framework` 선택
 2. **Root Directory 를 `web` 으로 지정** (이게 핵심 — 저장소 루트에는 Next.js 앱이 없다)
 3. Framework Preset 은 Next.js 로 자동 인식된다. Build/Output 설정은 기본값 그대로 둔다.
 

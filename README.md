@@ -344,7 +344,7 @@ threshold는 **validation에서 선정해 test에 고정 적용**한다.
 ## 저장소 구조
 
 ```
-SGIS/
+wildfire_predict_framework/
 ├── scripts/                     분석 파이프라인
 │   ├── 20_label_audit_*.py        기존 라벨 감사 (지속 vs 신규발화)
 │   ├── 21~25_*.py                 발화직전 마커 · 학습셋 · GRU 5-fold · ablation
