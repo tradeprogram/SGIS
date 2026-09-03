@@ -2,7 +2,8 @@
  * 우측 고정 에이전트 패널.
  *
  * 지도를 보면서 바로 물을 수 있어야 의사결정 보조가 된다. 그래서 열고 닫는
- * 팝업이 아니라 화면에 박아 둔다. 대신 좁은 화면(<1280px)에서는 접을 수 있다.
+ * 팝업이 아니라 화면에 박아 둔 고정 패널이다. 접히지 않는다 — 닫는 순간
+ * "부가 기능"이 되어 버리고, 담당자가 지도만 보다 끝난다.
  *
  * 컨텍스트는 부모가 만들어 넘긴다. 사용자가 보고 있는 날짜·등급·노출·실제 발화가
  * 그대로 모델에 들어가므로, "이 날"이라고만 물어도 답이 된다.
@@ -37,11 +38,6 @@ const GREETING =
   "전국 403,385격자 안에서의 상대 순위입니다. 무엇이든 물어보세요.";
 
 export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
-  // 지도가 가려지면 의사결정 보조가 아니라 방해가 된다. 좁은 화면에서는 접어 둔다.
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    setOpen(window.innerWidth >= 1280);
-  }, []);
   const [msgs, setMsgs] = useState<Msg[]>([{ role: "agent", text: GREETING }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -89,33 +85,25 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
     }
   };
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="glass pointer-events-auto absolute right-3 top-[4.75rem] z-20 px-3 py-2 text-[11px] text-slate-200 hover:bg-white/10"
-      >
-        💬 분석 에이전트
-      </button>
-    );
-  }
-
   return (
     <div className="pointer-events-none absolute bottom-3 right-3 top-[4.75rem] z-20 w-[360px]">
-      <div className="glass pointer-events-auto flex h-full flex-col overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
-          <span className="text-[13px]">💬</span>
-          <div className="text-[12px] font-semibold text-white">분석 에이전트</div>
-          <div className="tnum ml-auto text-[10px] text-slate-400">
-            {ctx.day ? ctx.day.date : "—"}
+      <div className="glass glass-live hud pointer-events-auto flex h-full flex-col overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-sky-400/15 bg-sky-400/[0.04] px-3 py-2.5">
+          <span className="dot-live shrink-0" />
+          <div>
+            <div className="text-[12px] font-semibold tracking-wide text-white">분석 에이전트</div>
+            <div className="text-[9px] uppercase tracking-[0.18em] text-sky-300/60">
+              decision support
+            </div>
           </div>
-          <button
-            onClick={() => setOpen(false)}
-            className="text-[11px] text-slate-400 hover:text-white"
-            aria-label="채팅 닫기"
-          >
-            ✕
-          </button>
+          <div className="tnum ml-auto text-right">
+            <div className="glow text-[11px] font-medium text-sky-200">
+              {ctx.day ? ctx.day.date : "—"}
+            </div>
+            <div className="text-[9px] text-slate-500">
+              {ctx.mode === "detail" ? "시간대별 상세" : "전 기간"}
+            </div>
+          </div>
         </div>
 
         <div className="scroll-thin flex-1 space-y-2.5 overflow-y-auto px-3 py-3">
@@ -125,8 +113,8 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
               className={
                 "whitespace-pre-wrap rounded-lg px-2.5 py-2 text-[11.5px] leading-relaxed " +
                 (m.role === "user"
-                  ? "ml-6 bg-accent/20 text-white"
-                  : "mr-2 bg-white/[0.04] text-slate-200")
+                  ? "ml-6 border border-sky-400/25 bg-sky-400/[0.12] text-white"
+                  : "mr-2 border border-white/[0.07] bg-white/[0.035] text-slate-200")
               }
             >
               {m.text}
@@ -143,21 +131,24 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
             </div>
           ))}
           {busy && (
-            <div className="mr-2 rounded-lg bg-white/[0.04] px-2.5 py-2 text-[11.5px] text-slate-400">
-              분석 중…
+            <div className="thinking mr-2 flex items-center gap-2 rounded-lg border border-sky-400/15 bg-sky-400/[0.05] px-2.5 py-2 text-[11.5px] text-sky-200/80">
+              <span className="dot-live shrink-0" />
+              분석 중<span>.</span>
+              <span>.</span>
+              <span>.</span>
             </div>
           )}
           <div ref={endRef} />
         </div>
 
-        <div className="border-t border-white/10 px-3 py-2">
+        <div className="border-t border-sky-400/15 bg-sky-400/[0.03] px-3 py-2.5">
           <div className="mb-2 flex flex-wrap gap-1">
             {chips.map((c) => (
               <button
                 key={c}
                 onClick={() => send(c)}
                 disabled={busy}
-                className="pill bg-white/[0.06] px-2 py-1 text-[10px] text-slate-300 hover:bg-white/15 disabled:opacity-40"
+                className="pill border border-sky-400/20 bg-sky-400/[0.07] px-2 py-1 text-[10px] text-sky-100/80 transition hover:border-sky-400/50 hover:bg-sky-400/20 disabled:opacity-40"
               >
                 {c}
               </button>
@@ -175,7 +166,7 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
               }}
               rows={1}
               placeholder="궁금한 점을 물어보세요…"
-              className="scroll-thin max-h-24 flex-1 resize-none rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-2 text-[11.5px] text-white outline-none placeholder:text-slate-500 focus:border-accent/50"
+              className="scroll-thin max-h-24 flex-1 resize-none rounded-lg border border-sky-400/20 bg-[#070d1f]/70 px-2.5 py-2 text-[11.5px] text-white outline-none transition placeholder:text-slate-500 focus:border-sky-400/60 focus:shadow-[0_0_0_3px_rgba(56,189,248,0.12)]"
             />
             <button
               onClick={() => send(input)}

@@ -247,7 +247,7 @@ export default function Home() {
             <div className="text-[13px] font-semibold leading-tight text-white">
               산불 발화예측·우선대응 통합지도
             </div>
-            <div className="text-[10px] leading-tight text-slate-400">SGIS 통계지리 기반 500m 격자 의사결정 시스템</div>
+            <div className="text-[10px] leading-tight text-sky-300/60">SGIS 통계지리 기반 500m 격자 의사결정 시스템</div>
           </div>
         </div>
 
@@ -264,7 +264,7 @@ export default function Home() {
                     ? `전 기간 ${tl.days.length}일 · ${tl.note}`
                     : "신규발화 위험"}
               </div>
-              <div className="tnum text-[14px] font-semibold text-white">
+              <div className="tnum glow text-[14px] font-semibold text-white">
                 {(detail ? info?.date : td?.d) ?? "—"}{" "}
                 <span className="text-accent">
                   {pad(detail ? hour : (tl?.hour ?? 10))}:00
@@ -328,7 +328,7 @@ export default function Home() {
 
       {/* ── 좌측 패널 ─────────────────────────────────────────── */}
       <div className="pointer-events-none absolute bottom-24 left-3 top-[4.75rem] z-10 w-[286px]">
-        <div className="glass scroll-thin pointer-events-auto h-full overflow-y-auto p-3">
+        <div className="glass hud scroll-thin pointer-events-auto h-full overflow-y-auto p-3">
           <SectionTitle>위험 등급</SectionTitle>
           <div className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
             확률이 아니라 <b className="text-slate-300">전국 상대 순위</b>입니다. 재표본화 학습이라
@@ -471,7 +471,7 @@ export default function Home() {
 
       {/* ── 우측 패널 ─────────────────────────────────────────── */}
       {sel && (
-        <div className="pointer-events-none absolute right-3 top-[4.75rem] z-10 w-[272px] xl:right-[384px]">
+        <div className="pointer-events-none absolute right-[384px] top-[4.75rem] z-10 w-[272px]">
           <div className="glass pointer-events-auto p-3">
             <div className="mb-2 flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -553,9 +553,9 @@ export default function Home() {
       )}
 
       {/* ── 하단 바 — 전 기간 스크러버 / 사례일 시간 슬라이더 ── */}
-      {/* 채팅 패널(360px + 여백)이 열리는 xl 이상에서는 그만큼 비켜 준다 */}
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-20 p-3 xl:right-[384px]">
-        <div className="glass pointer-events-auto mx-auto max-w-4xl px-4 py-3">
+      {/* 채팅 패널이 상시 고정(360px + 여백)이라 그만큼 항상 비켜 준다 */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-[372px] z-20 p-3">
+        <div className="glass glass-live pointer-events-auto mx-auto max-w-4xl px-4 py-3">
           {detail ? (
             <>
               <div className="mb-1.5 flex items-center gap-3">
