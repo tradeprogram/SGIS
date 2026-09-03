@@ -44,3 +44,9 @@ outputs/chain2_log.txt
 outputs/51_scan_h*_log.txt
 outputs/53_assets_log.txt
 outputs/chain*_log.txt
+
+# v4 코랩 산출물 (대용량)
+models_v4/*.pt
+outputs/v4/cnn_v4_spatial_pred_*.csv
+data/ml_dataset/*.parquet
+data/ref/*.xlsx

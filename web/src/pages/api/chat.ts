@@ -77,7 +77,9 @@ async function once(key: string, model: string, payload: unknown, budgetMs: numb
       signal: ac.signal,
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: JSON.stringify(payload, null, 1) }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 1200 },
+        // 한글은 토큰당 글자 수가 적다. 700~1000자를 뽑으려면 1200 으로는 모자라
+        // 문장 중간에 잘린다. 넉넉히 준다.
+        generationConfig: { temperature: 0.3, maxOutputTokens: 2600 },
       }),
     });
     if (!r.ok) return { status: r.status, body: (await r.text()).slice(0, 200) };
@@ -110,7 +112,7 @@ async function callGemini(key: string, body: Body) {
     screen_context: body.context ?? null,
     recent_history: (body.history || []).slice(-MAX_HISTORY),
     output_format:
-      "한국어 대화체 3~6문단, 400~900자. 마크다운 헤더·표 금지. " +
+      "한국어 대화체 4~7문단, 700~1000자. 짧게 끊지 말 것. 마크다운 헤더·표 금지. " +
       "screen_context 에 없는 수치는 지어내지 말 것.",
   };
 
