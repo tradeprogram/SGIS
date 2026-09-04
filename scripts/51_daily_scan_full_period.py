@@ -32,6 +32,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 
 import _stage2_model as S2
+import _exposure as S2E
 
 NAS     = r'V:\data'
 DERIVED = r'C:\for_sgis\data\grid_data\derived'
@@ -100,13 +101,9 @@ def dump_png(haz_t1, day, hh):
         os.path.join(PNG_DIR, f'{day:%Y%m%d}_{hh:02d}.png'), optimize=True)
 
 # ── 노출·행정동 (연도 무관, 1회) ─────────────────────────────────────
-exp = pd.read_parquet(os.path.join(DERIVED, 'mask_exposure_500m.parquet'))
-adm = pd.read_parquet(os.path.join(DERIVED, 'cell_admin.parquet'))
-base0 = pd.DataFrame({'prow': valid_rows.astype(np.int32), 'pcol': valid_cols.astype(np.int32)})
-base0 = base0.merge(exp[['prow', 'pcol', 'pop_total']], on=['prow', 'pcol'], how='left')
-base0 = base0.merge(adm[['prow', 'pcol', 'adm_cd', 'adm_nm']].astype({'prow': 'int32', 'pcol': 'int32'}),
-                    on=['prow', 'pcol'], how='left')
-base0['expo_rank'] = base0['pop_total'].rank(pct=True) * 100
+# 노출항은 주간 보정 인구. 산불은 낮에 나는데 상주인구는 야간 기준이다.
+base0 = S2E.build(valid_rows, valid_cols)
+base0['expo_rank'] = base0['pop_expo'].rank(pct=True) * 100
 print(f'노출·행정동 결합 완료 (행정동 {base0["adm_cd"].nunique():,}개)')
 
 # ── 실제 발화 (원본 + SGIS 복구 좌표) ────────────────────────────────
@@ -204,6 +201,9 @@ for YEAR in years:
 
     is_wui = (forest >= FOREST_MIN) & (base0['pop_total'].values >= POP_MIN)
     pop = np.nan_to_num(base0['pop_total'].values, nan=0.0)
+    pop_day = np.nan_to_num(base0['pop_day'].values, nan=0.0)
+    pop_old = np.nan_to_num(base0['pop_old'].values, nan=0.0)
+    old_house = np.nan_to_num(base0['old_house'].values, nan=0.0)
     expo_rank = np.nan_to_num(base0['expo_rank'].values, nan=0.0)
 
     ndvi_f = sorted(glob.glob(NAS + r'\mod09a1_ndvi\*\mod_ndvi_*.tif'))
@@ -295,8 +295,15 @@ for YEAR in years:
                 dump_png(t1, day, hh)
             rows.append({
                 'date': day.date(), 'hour': hh,
+                # 상주인구는 그대로 두고 주간·고령·노후주택을 나란히 남긴다.
+                # 기존 화면과 비교가 되어야 보정 효과를 설명할 수 있다.
                 'top1_pop': float(pop[t1 <= 1].sum()),
                 'top5_pop': float(pop[t1 <= 5].sum()),
+                'top1_pop_day': float(pop_day[t1 <= 1].sum()),
+                'top5_pop_day': float(pop_day[t1 <= 5].sum()),
+                'top1_pop_old': float(pop_old[t1 <= 1].sum()),
+                'top5_pop_old': float(pop_old[t1 <= 5].sum()),
+                'top5_old_house': float(old_house[t1 <= 5].sum()),
                 'wui_top5_cells': int(((t1 <= 5) & is_wui).sum()),
                 'max_prob': float(np.nanmax(probs[:, 0])),
                 'mean_prob': float(np.nanmean(probs[:, 0])),

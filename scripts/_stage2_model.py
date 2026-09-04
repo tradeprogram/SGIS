@@ -5,7 +5,9 @@ Stage1 LGBM + Stage2 CNN 로더 — 32/35/51번이 공유한다.
 같은 수정을 세 군데에 해야 했고, 한 군데만 빠뜨리면 조용히 다른 결과가 나온다.
 그래서 여기로 모은다.
 
-v4b (현행)
+현행 배포 = gru_old (아래 STAGE2_ARCH 참고)
+
+v4b (검증 완료, 미채택)
   Stage1  LightGBM, 음성:양성 1:20  → P_lgbm_r20
   Stage2  CNN(Conv1d 2→32→64, k=3, padding=1 → AdaptiveMaxPool1d(1))
           + Linear(64+7→64) → Linear(64→3) → Sigmoid
@@ -29,7 +31,11 @@ NAS      = os.environ.get('NAS_ROOT', r'V:\data')
 MDL_V4   = os.path.join(r'C:', os.sep, 'for_sgis', 'models_v4')
 MDL_OLD  = os.path.join(r'C:', os.sep, 'for_sgis', 'models')
 
-ARCH      = os.environ.get('STAGE2_ARCH', 'cnn')       # cnn | gru | gru_old
+# 기본값은 gru_old — 배포 파이프라인이 쓰는 모델이다. v4b CNN 은 검증셋
+# AUROC 가 더 높은데도 전국 격자 상위 1% 포착률이 5.3%→2.9% 로 떨어져
+# 이관을 철회했다(docs/STAGE2_ABLATION.md). 기본값을 cnn 으로 두면
+# 재실행하는 사람이 기각한 모델을 쓰게 된다.
+ARCH      = os.environ.get('STAGE2_ARCH', 'gru_old')   # gru_old | cnn | gru
 S2_RATIO  = os.environ.get('STAGE2_RATIO', '20')       # CNN 학습셋 재표본화 비율
 S1_RATIO  = os.environ.get('STAGE1_RATIO', '20')       # LGBM 재표본화 비율
 

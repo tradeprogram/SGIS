@@ -21,6 +21,7 @@ from rasterio.transform import rowcol
 import pyproj
 
 import _stage2_model as S2
+import _exposure as S2E
 
 NAS     = r'V:\data'
 DERIVED = r'C:\for_sgis\data\grid_data\derived'
@@ -123,13 +124,13 @@ for kind, c in [('ndvi', 'ndvi'), ('ndmi', 'ndmi')]:
 print(f'  완료 ({(time.time()-t0)/60:.1f}분)')
 
 # ── 노출 ─────────────────────────────────────────────────────────────
-exp = pd.read_parquet(os.path.join(DERIVED, 'mask_exposure_500m.parquet'))
-base = pd.DataFrame({'prow': valid_rows.astype(np.int32), 'pcol': valid_cols.astype(np.int32),
-                     'forest_ratio': forest})
-base = base.merge(exp[['prow', 'pcol', 'pop_total', 'households', 'houses', 'low_count_only']],
-                  on=['prow', 'pcol'], how='left')
+# 노출항은 주간 보정 인구다. 산불은 낮에 나는데 상주인구는 야간 기준이라
+# 그대로 쓰면 낮에 비는 아파트 밀집지가 위로 올라온다. 자세한 근거와 한계는
+# _exposure.py 주석 참고.
+base = S2E.build(valid_rows, valid_cols)
+base['forest_ratio'] = forest
 base['is_wui'] = (base['forest_ratio'] >= FOREST_MIN) & (base['pop_total'] >= POP_MIN)
-base['expo_rank'] = base['pop_total'].rank(pct=True) * 100
+base['expo_rank'] = base['pop_expo'].rank(pct=True) * 100
 print(f'WUI 격자 {int(base["is_wui"].sum()):,}개')
 
 # ── 모델 ─────────────────────────────────────────────────────────────
@@ -239,8 +240,17 @@ for hh in HOURS:
         'T': TT,
         'top1pct_인구': float(d.loc[d['haz_top_t1'] <= 1, 'pop_total'].sum()),
         'top5pct_인구': float(d.loc[d['haz_top_t1'] <= 5, 'pop_total'].sum()),
+        # 상주인구는 그대로 두고 주간·고령·노후주택을 나란히 남긴다.
+        # 기존 화면과 비교가 되어야 보정 효과를 설명할 수 있다.
+        'top1pct_주간인구': float(d.loc[d['haz_top_t1'] <= 1, 'pop_day'].sum()),
+        'top5pct_주간인구': float(d.loc[d['haz_top_t1'] <= 5, 'pop_day'].sum()),
+        'top1pct_고령': float(d.loc[d['haz_top_t1'] <= 1, 'pop_old'].sum()),
+        'top5pct_고령': float(d.loc[d['haz_top_t1'] <= 5, 'pop_old'].sum()),
+        'top5pct_노후주택': float(d.loc[d['haz_top_t1'] <= 5, 'old_house'].sum()),
         'wui_top5pct_격자': int(((d['haz_top_t1'] <= 5) & d['is_wui']).sum()),
         'top10_인구': float(top['pop_total'].sum()),
+        'top10_주간인구': float(top['pop_day'].sum()),
+        'top10_고령': float(top['pop_old'].sum()),
         'top10_평균위험상위%': round(float(top['haz_top_t1'].mean()), 3),
         # 공간 백분위만 보면 조용한 날이 더 위험해 보인다.
         # 시간축 비교(오늘이 5년 중 얼마나 위험한 날인가)를 위해 절대값도 남긴다.
@@ -251,6 +261,7 @@ for hh in HOURS:
     })
     grid_out.append(d.loc[d['is_wui'], ['T', 'prow', 'pcol', 'y_prob_t1', 'y_prob_t2', 'y_prob_t3',
                                         'haz_top_t1', 'score_t1', 'pop_total',
+                                        'pop_day', 'pop_old', 'old_house', 'avg_age',
                                         'vpd', 'wind', 'hum4d', 'prcp4d', 'ndmi']])
     full_grid.append(np.stack([d['haz_top_t1'].values, d['haz_top_t2'].values,
                                d['haz_top_t3'].values]).astype(np.float32))
