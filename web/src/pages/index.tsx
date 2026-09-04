@@ -167,6 +167,7 @@ export default function Home() {
       priority: detail
         ? topList.slice(0, 10).map((t, i) => ({
             rank: i + 1, name: t.nm, topPct: t.top, pop: t.pop,
+            popDay: t.popd, popOld: t.old, avgAge: t.age,
           }))
         : undefined,
       cell: sel
@@ -415,8 +416,11 @@ export default function Home() {
           {detail ? (
             day ? (
               <>
-                <Row label="상위 1% 격자 노출인구" value={nf(s?.top1_pop ?? 0) + "명"} />
-                <Row label="상위 5% 격자 노출인구" value={nf(s?.top5_pop ?? 0) + "명"} />
+                <Row label="상위 1% 주간 노출인구" value={nf(s?.top1_pop_day ?? 0) + "명"} />
+                <Row label="상위 5% 주간 노출인구" value={nf(s?.top5_pop_day ?? 0) + "명"} />
+                <Row label="└ 65세 이상" value={nf(s?.top5_pop_old ?? 0) + "명"} />
+                <Row label="└ 30년 이상 노후주택" value={nf(s?.top5_old_house ?? 0) + "호"} />
+                <Row label="상위 5% 상주인구(야간)" value={nf(s?.top5_pop ?? 0) + "명"} />
                 <Row label="WUI ∩ 상위 5% 격자" value={nf(s?.wui_top5_cells ?? 0) + "개"} />
                 <Row label="예측 구간 실제 발화" value={hourFires.length + "건"} />
               </>
@@ -455,7 +459,13 @@ export default function Home() {
 
           <SectionTitle className="mt-4">대응 우선지역 Top 10</SectionTitle>
           <div className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
-            위험 순위와 SGIS 노출인구 순위의 평균. 산림 30%·인구 10명 이상 격자(WUI) 한정.
+            위험 순위와 SGIS <b className="text-slate-300">주간 노출인구</b> 순위의 평균.
+            산림 30%·인구 10명 이상 격자(WUI) 한정.
+          </div>
+          <div className="mb-1.5 rounded-lg border border-amber-400/20 bg-amber-400/5 px-2 py-1.5 text-[10px] leading-relaxed text-slate-400">
+            산불은 오후에 나는데 상주인구는 야간 기준입니다. 그래서 SGIS 종사자수로
+            <b className="text-slate-300"> 주간인구를 추정</b>해 보정했습니다. 다만 농작업은
+            사업체 등록에 안 잡혀 <b className="text-slate-300">농촌은 과소추정</b>됩니다.
           </div>
           {!detail && (
             <div className="mb-1 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-2 text-[10px] leading-relaxed text-slate-400">
@@ -491,7 +501,8 @@ export default function Home() {
                   {p.nm || "이름 없음"}
                 </span>
                 <span className="tnum block text-[10px] text-slate-400">
-                  상위 {p.top.toFixed(2)}% · 노출 {nf(p.pop)}명
+                  상위 {p.top.toFixed(2)}% · 주간 {nf(p.popd)}명
+                  {p.old > 0 && <> · 65+ {nf(p.old)}명</>}
                 </span>
               </span>
             </button>
@@ -822,6 +833,10 @@ type PriorityItem = {
   top: number;
   score: number;
   pop: number;
+  /** 주간 보정 인구. 순위를 정하는 건 이 값이다. */
+  popd: number;
+  old: number;
+  age: number | null;
   forest: number;
 };
 type Fire = { lon: number; lat: number; hh: number; loc: string; ha: number; cells: number };
@@ -833,6 +848,11 @@ type DayMeta = {
     {
       top1_pop: number;
       top5_pop: number;
+      top1_pop_day: number;
+      top5_pop_day: number;
+      top1_pop_old: number;
+      top5_pop_old: number;
+      top5_old_house: number;
       wui_top5_cells: number;
       top10_pop: number;
       n_fire: number;

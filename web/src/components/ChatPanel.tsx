@@ -28,7 +28,11 @@ export type ChatContext = {
     fires: { loc: string; hh: number; ha: number }[];
   } | null;
   hour?: number;
-  priority?: { rank: number; name: string; topPct: number; pop: number }[];
+  priority?: {
+    rank: number; name: string; topPct: number;
+    /** pop = 상주인구(야간), popDay = 순위를 정하는 주간 보정 인구 */
+    pop: number; popDay: number; popOld: number; avgAge: number | null;
+  }[];
   cell?: Record<string, unknown> | null;
 };
 

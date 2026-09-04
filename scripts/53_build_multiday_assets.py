@@ -224,8 +224,11 @@ for d in days:
     tp_df = pd.read_csv(os.path.join(DERIVED, f'replay_{ymd}_top.csv'), encoding='utf-8-sig')
     tp_df['T'] = pd.to_datetime(tp_df['T'])
     tp_df['hh'] = tp_df['T'].dt.hour
-    tp_df = tp_df.astype({'prow': 'int32', 'pcol': 'int32'}).merge(
-        adm[['prow', 'pcol', 'adm_nm']], on=['prow', 'pcol'], how='left')
+    tp_df = tp_df.astype({'prow': 'int32', 'pcol': 'int32'})
+    # 35번이 _exposure 를 쓰면서 top.csv 에 adm_nm 이 이미 들어온다.
+    # 그대로 다시 붙이면 adm_nm_x/_y 로 갈라져 아래 itertuples 접근이 깨진다.
+    if 'adm_nm' not in tp_df.columns:
+        tp_df = tp_df.merge(adm[['prow', 'pcol', 'adm_nm']], on=['prow', 'pcol'], how='left')
     pri = {}
     for hh, sub in tp_df.groupby('hh'):
         sub = sub.nlargest(TOP_N, 'score_t1')
@@ -237,6 +240,10 @@ for d in days:
             'lon': round(float(a2), 5), 'lat': round(float(b2), 5),
             'top': round(float(r.haz_top_t1), 2), 'score': round(float(r.score_t1), 1),
             'pop': round(float(r.pop_total), 0), 'forest': round(float(r.forest_ratio), 2),
+            # 순위를 정하는 건 주간인구다. 상주인구만 보여주면 왜 이 격자가
+            # 위로 올라왔는지 화면에서 설명이 안 된다.
+            'popd': round(float(r.pop_day), 0), 'old': round(float(r.pop_old), 0),
+            'age': round(float(r.avg_age), 1) if pd.notna(r.avg_age) else None,
         } for r, a2, b2 in zip(sub.itertuples(), lo, la)]
     with open(os.path.join(out_dir, 'priority.json'), 'w', encoding='utf-8') as f:
         json.dump(pri, f, ensure_ascii=False, separators=(',', ':'))
@@ -260,6 +267,9 @@ for d in days:
         json.dump({'date': date, 'hours': [int(h) for h in hours],
                    'summary': {str(int(r.hh)): {
                        'top1_pop': int(r.top1pct_인구), 'top5_pop': int(r.top5pct_인구),
+                       'top1_pop_day': int(r.top1pct_주간인구), 'top5_pop_day': int(r.top5pct_주간인구),
+                       'top1_pop_old': int(r.top1pct_고령), 'top5_pop_old': int(r.top5pct_고령),
+                       'top5_old_house': int(r.top5pct_노후주택),
                        'wui_top5_cells': int(r.wui_top5pct_격자),
                        'top10_pop': int(r.top10_인구), 'n_fire': int(r.발화건수),
                        'max_prob': round(float(r.max_prob), 5),
