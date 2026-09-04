@@ -11,8 +11,10 @@ v4b (현행)
           + Linear(64+7→64) → Linear(64→3) → Sigmoid
           학습셋 재표본화 1:20 (STAGE2_RATIO)
 
-구버전(GRU, Stage1 1:10 상당)은 커밋 이력에 남아 있다. 되돌릴 일이 있으면
-STAGE2_ARCH=gru 로 쓰되, 그때는 models/ 아래 gru_ign_* 태그를 본다.
+STAGE2_ARCH
+  cnn      cnn_v4b_r20_s{비율}_*        (기본)
+  gru      gru_v4b_r20_s{비율}_*        62번 하네스로 학습한 GRU. 원인 분리용
+  gru_old  models/gru_ign_* + 구 Stage1  기존 웹 자산을 만든 파이프라인
 """
 
 import os
@@ -27,7 +29,7 @@ NAS      = os.environ.get('NAS_ROOT', r'V:\data')
 MDL_V4   = os.path.join(r'C:', os.sep, 'for_sgis', 'models_v4')
 MDL_OLD  = os.path.join(r'C:', os.sep, 'for_sgis', 'models')
 
-ARCH      = os.environ.get('STAGE2_ARCH', 'cnn')       # cnn | gru
+ARCH      = os.environ.get('STAGE2_ARCH', 'cnn')       # cnn | gru | gru_old
 S2_RATIO  = os.environ.get('STAGE2_RATIO', '20')       # CNN 학습셋 재표본화 비율
 S1_RATIO  = os.environ.get('STAGE1_RATIO', '20')       # LGBM 재표본화 비율
 
@@ -44,7 +46,7 @@ def fold_of(year: int) -> int:
 
 
 def lgbm_path(fold_no: int, year: int) -> str:
-    if ARCH == 'gru':
+    if ARCH == 'gru_old':
         return os.path.join(NAS, 'ml_results', 'exp_no_smap_spi_temp_4v1',
                             'lgbm_models', f'lgbm_fold{fold_no}_test{year}.pkl')
     return os.path.join(NAS, 'ml_results', 'exp_no_smap_spi_temp_4v1_ne3000',
@@ -53,9 +55,9 @@ def lgbm_path(fold_no: int, year: int) -> str:
 
 def tag_of(fold_no: int, year: int) -> tuple:
     """(태그, 가중치 디렉터리)"""
-    if ARCH == 'gru':
+    if ARCH == 'gru_old':
         return f'gru_ign_fold{fold_no}_test{year}', MDL_OLD
-    return f'cnn_v4b_r20_s{S2_RATIO}_fold{fold_no}_test{year}', MDL_V4
+    return f'{ARCH}_v4b_r20_s{S2_RATIO}_fold{fold_no}_test{year}', MDL_V4
 
 
 def _build_cnn():
@@ -101,12 +103,11 @@ def load(year: int, verbose: bool = True):
         scaler = pickle.load(f)
 
     body, head = _build_cnn() if ARCH == 'cnn' else _build_gru()
+    is_cnn = ARCH == 'cnn'
     body.load_state_dict(torch.load(os.path.join(mdir, f'{tag}_body.pt'), map_location='cpu'))
     head.load_state_dict(torch.load(os.path.join(mdir, f'{tag}_head.pt'), map_location='cpu'))
     body.eval()
     head.eval()
-
-    is_cnn = ARCH == 'cnn'
 
     def infer(seq: np.ndarray, static: np.ndarray, chunk: int = 8192) -> np.ndarray:
         n = len(seq)
@@ -124,7 +125,7 @@ def load(year: int, verbose: bool = True):
                 out[i:i + chunk] = head(torch.cat([z, torch.tensor(st[i:i + chunk])], 1)).numpy()
         return out
 
-    desc = (f'{"CNN v4b" if is_cnn else "GRU(구)"} {tag} / {year}년을 학습에서 제외한 fold '
+    desc = (f'{"CNN v4b" if is_cnn else "GRU"} {tag} / {year}년을 학습에서 제외한 fold '
             f'| Stage1 {os.path.basename(lp)}')
     if verbose:
         print(f'모델: {desc}')

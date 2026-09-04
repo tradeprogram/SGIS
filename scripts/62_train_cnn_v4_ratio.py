@@ -1,5 +1,15 @@
 """
-Stage2 CNN 재학습 — 재표본화 비율 가변(기본 1:20).
+Stage2 재학습 — 재표본화 비율 가변(기본 1:20), 아키텍처 가변(기본 CNN).
+
+ARCH=gru 는 원인 분리용이다. v4b CNN 이 전국 격자 상위 1% 포착률에서
+기존 GRU 파이프라인보다 나빴는데(5.3%→2.9%), 그때 Stage1(구 LGBM→r20)과
+Stage2(GRU→CNN)가 동시에 바뀌어 있었다. 같은 데이터·같은 재표본화·같은
+하이퍼파라미터로 GRU 를 학습해 두면 CNN 과의 차이가 순수하게 아키텍처 차이가 된다.
+  A 구 GRU + 구 Stage1   (기존 기준, models/gru_ign_*)
+  B    GRU + r20 + 1:20  (ARCH=gru)   ← A vs B = Stage1 교체분
+  C    CNN + r20 + 1:20  (ARCH=cnn)   ← B vs C = 아키텍처분
+GRU 원래 설정은 dropout 0.3 / lr 3e-4 였지만 여기서는 CNN 과 동일하게 맞춘다.
+안 맞추면 아키텍처 차이인지 하이퍼파라미터 차이인지 다시 섞인다.
 
 배경
   v4b 는 Stage1 LGBM 을 1:20(P_lgbm_r20)으로 쓰면서 Stage2 CNN 학습셋만
@@ -42,11 +52,12 @@ os.makedirs(OUT, exist_ok=True)
 RATIO    = int(os.environ.get('RATIO', '20'))
 SEED     = int(os.environ.get('SEED', '42'))
 DROPOUT  = float(os.environ.get('DROPOUT', '0.2'))
+ARCH     = os.environ.get('ARCH', 'cnn')               # cnn | gru
 LR       = 5e-4
 BATCH    = 2048
 MAX_EP   = 200
 PATIENCE = 15
-TAGBASE  = f'cnn_v4b_r20_s{RATIO}'
+TAGBASE  = f'{ARCH}_v4b_r20_s{RATIO}'
 
 LOOKBACK = 12
 SEQ_COLS = []
@@ -60,11 +71,14 @@ YEARS  = [2021, 2022, 2023, 2024, 2025]
 
 
 def build(drop):
-    """60번에서 fold5 공간추론 결과와 6.17e-07 오차로 확정한 구조."""
-    body = nn.Sequential(
-        nn.Conv1d(2, 32, 3, padding=1), nn.ReLU(), nn.Dropout(drop),
-        nn.Conv1d(32, 64, 3, padding=1), nn.ReLU(), nn.AdaptiveMaxPool1d(1),
-    )
+    """CNN 은 60번에서 fold5 공간추론 결과와 6.17e-07 오차로 확정한 구조."""
+    if ARCH == 'gru':
+        body = nn.GRU(2, 64, num_layers=2, batch_first=True, dropout=drop)
+    else:
+        body = nn.Sequential(
+            nn.Conv1d(2, 32, 3, padding=1), nn.ReLU(), nn.Dropout(drop),
+            nn.Conv1d(32, 64, 3, padding=1), nn.ReLU(), nn.AdaptiveMaxPool1d(1),
+        )
     head = nn.Sequential(
         nn.Linear(64 + len(STATIC), 64), nn.ReLU(), nn.Dropout(drop),
         nn.Linear(64, 3), nn.Sigmoid(),
@@ -72,10 +86,18 @@ def build(drop):
     return body, head
 
 
+def encode(body, sq):
+    """CNN 은 채널이 앞(N,2,12)이고 pool 뒤 (N,64,1), GRU 는 (N,12,2)에 마지막 은닉."""
+    if ARCH == 'gru':
+        return body(sq)[0][:, -1, :]
+    return body(sq).squeeze(-1)
+
+
 def to_tensors(X):
-    sq = torch.tensor(X[:, :24].reshape(-1, LOOKBACK, 2).transpose(0, 2, 1).copy())
-    st = torch.tensor(X[:, 24:].copy())
-    return sq, st
+    sq = X[:, :24].reshape(-1, LOOKBACK, 2)
+    if ARCH != 'gru':
+        sq = sq.transpose(0, 2, 1)
+    return torch.tensor(sq.copy()), torch.tensor(X[:, 24:].copy())
 
 
 @torch.no_grad()
@@ -84,12 +106,12 @@ def predict(body, head, sq, st, bs=32768):
     head.eval()
     out = []
     for j in range(0, len(sq), bs):
-        z = body(sq[j:j + bs]).squeeze(-1)
+        z = encode(body, sq[j:j + bs])
         out.append(head(torch.cat([z, st[j:j + bs]], 1)).numpy())
     return np.concatenate(out)
 
 
-print(f'■ Stage2 CNN 재학습  ratio 1:{RATIO}  seed {SEED}  dropout {DROPOUT}')
+print(f'■ Stage2 {ARCH.upper()} 재학습  ratio 1:{RATIO}  seed {SEED}  dropout {DROPOUT}')
 d = pd.read_parquet(SEQ, columns=['year'] + FEATS + LABELS)
 d = d.dropna(subset=FEATS).reset_index(drop=True)
 pos_mask = d[LABELS].sum(1).values > 0
@@ -146,7 +168,7 @@ for i, ty in enumerate(YEARS):
         for j in range(0, n, BATCH):
             b = perm[j:j + BATCH]
             opt.zero_grad()
-            z = body(sq_tr[b]).squeeze(-1)
+            z = encode(body, sq_tr[b])
             loss = lossf(head(torch.cat([z, st_tr[b]], 1)), y_tr[b])
             loss.backward()
             opt.step()
@@ -181,7 +203,7 @@ for i, ty in enumerate(YEARS):
 
     for h in range(3):
         rows.append({
-            'model': 'CNN', 'fold': i + 1, 'test_year': ty, 'val_year': vy,
+            'model': ARCH.upper(), 'fold': i + 1, 'test_year': ty, 'val_year': vy,
             'horizon_h': h + 1, 'plgbm': 'P_lgbm_r20', 'ratio': RATIO, 'lr': LR,
             'n_train': int(tr.sum()), 'n_val': int(va.sum()), 'n_test': int(te.sum()),
             'n_pos_test': int(y_te[:, h].sum()),
@@ -199,7 +221,7 @@ for i, ty in enumerate(YEARS):
           f"{r1['fold_sec']:.0f}s")
 
 res = pd.DataFrame(rows)
-dst = os.path.join(OUT, f'dl_cnn_v4b_s{RATIO}_allfold_results.csv')
+dst = os.path.join(OUT, f'dl_{ARCH}_v4b_s{RATIO}_allfold_results.csv')
 res.to_csv(dst, index=False, encoding='utf-8-sig')
 print(f'\n저장 {dst}')
 print('\n■ horizon별 평균')
