@@ -150,7 +150,7 @@ export default function Home() {
         ? info
           ? {
               date: info.date, level: null, topPct: null,
-              e1: Math.round(s?.top1_pop ?? 0), e5: Math.round(s?.top5_pop ?? 0),
+              e1: Math.round(s?.top1_pop_day ?? 0), e5: Math.round(s?.top5_pop_day ?? 0),
               wui: s?.wui_top5_cells ?? 0, n: info.n_fire, ha: info.ha,
               fires: (day?.fires ?? []).map((f) => ({ loc: f.loc, hh: f.hh, ha: f.ha })),
             }
@@ -429,8 +429,11 @@ export default function Home() {
             )
           ) : td ? (
             <>
-              <Row label="상위 1% 격자 노출인구" value={nf(td.e1) + "명"} />
-              <Row label="상위 5% 격자 노출인구" value={nf(td.e5) + "명"} />
+              <Row label="상위 1% 주간 노출인구" value={nf(td.e1) + "명"} />
+              <Row label="상위 5% 주간 노출인구" value={nf(td.e5) + "명"} />
+              <Row label="└ 65세 이상" value={nf(td.o5 ?? 0) + "명"} />
+              <Row label="└ 30년 이상 노후주택" value={nf(td.h5 ?? 0) + "호"} />
+              <Row label="상위 5% 상주인구(야간)" value={nf(td.r5 ?? 0) + "명"} />
               <Row label="WUI ∩ 상위 5% 격자" value={nf(td.w) + "개"} />
               <Row label="이 날 실제 발화" value={td.n === 0 ? "없음" : `${td.n}건 · ${nf(td.ha, 1)}ha`} />
             </>
@@ -766,6 +769,11 @@ type TlDay = {
   l: string | null;     // 등급
   e1: number;           // 상위 1% 격자 노출인구
   e5: number;
+  /** r = 상주(야간) 비교용, o5 = 65세 이상, h5 = 30년이상 노후주택 */
+  r1?: number;
+  r5?: number;
+  o5?: number;
+  h5?: number;
   w: number;            // WUI ∩ 상위 5% 격자 수
   n: number;            // 그날 실제 발화 건수
   ha: number;

@@ -100,8 +100,14 @@ for r in d.itertuples():
         'd': ds,
         'p': round(float(t[0]), 1) if t else None,   # 시간축 백분위
         'l': t[1] if t else None,                    # 등급
-        'e1': int(r.top1_pop),                       # 상위 1% 노출인구
-        'e5': int(r.top5_pop),
+        # 노출은 주간 보정 인구가 기준이다(우선순위 산식과 같은 값).
+        # 상주인구도 남겨 보정 효과를 화면에서 비교할 수 있게 한다.
+        'e1': int(r.top1_pop_day),                   # 상위 1% 주간 노출인구
+        'e5': int(r.top5_pop_day),
+        'r1': int(r.top1_pop),                       # 상주(야간) 비교용
+        'r5': int(r.top5_pop),
+        'o5': int(r.top5_pop_old),                   # 상위 5% 65세 이상
+        'h5': int(r.top5_old_house),                 # 상위 5% 30년이상 노후주택
         'w': int(r.wui_top5_cells),
         'n': f['n'] if f else 0,
         'ha': f['ha'] if f else 0,
