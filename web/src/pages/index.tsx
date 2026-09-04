@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChatPanel, { type ChatContext } from "../components/ChatPanel";
+import RegionPicker, { type Picked } from "../components/RegionPicker";
 
 type MlMap = any;
+
+// 행정경계는 6.6MB 다. 컴포넌트가 다시 마운트될 때마다 받으면 그대로 낭비라
+// 모듈 수준에서 한 번만 받아 재사용한다.
+let admPromise: Promise<any> | null = null;
+function loadAdm() {
+  if (!admPromise) {
+    admPromise = fetch("/data/adm_dong.geojson")
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+  }
+  return admPromise;
+}
 
 const nf = (n: number, d = 0) =>
   n.toLocaleString("ko-KR", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -21,6 +34,8 @@ export default function Home() {
   const [ti, setTi] = useState(0);
   // false = 전 기간 모드(741일, 하루 한 장). true = 사례일 시간대별 상세.
   const [detail, setDetail] = useState(false);
+  // 왼쪽에서 고른 행정동. 지도 경계 강조와 화면 이동에 쓴다.
+  const [picked, setPicked] = useState<Picked | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const stripRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -233,6 +248,7 @@ export default function Home() {
         ymd={detail ? ymd : null}
         hour={hour}
         dailyPng={detail || !tYmd ? null : `/data/daily/${tYmd}_${pad(tl?.hour ?? 10)}.png`}
+        picked={picked}
         onPick={pickCell}
         onReady={(m: MlMap) => (mapRef.current = m)}
       />
@@ -336,7 +352,14 @@ export default function Home() {
       {/* ── 좌측 패널 ─────────────────────────────────────────── */}
       <div className="pointer-events-none absolute bottom-24 left-3 top-[4.75rem] z-10 w-[286px]">
         <div className="glass hud scroll-thin pointer-events-auto h-full overflow-y-auto p-3">
-          <SectionTitle>위험 등급</SectionTitle>
+          <SectionTitle>지역 찾기</SectionTitle>
+          <div className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
+            읍·면·동을 고르면 그 경계를 <b className="text-sky-300">파랑</b>으로 짚고 화면을
+            옮깁니다. 전국 <b className="text-slate-300">3,559개</b> 행정동, SGIS 경계 기준입니다.
+          </div>
+          <RegionPicker picked={picked} onPick={setPicked} />
+
+          <SectionTitle className="mt-4">위험 등급</SectionTitle>
           <div className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
             확률이 아니라 <b className="text-slate-300">전국 상대 순위</b>입니다. 재표본화 학습이라
             확률로 읽으면 안 됩니다.
@@ -896,11 +919,13 @@ type MapProps = {
   hour: number;
   /** 전 기간 모드에서 띄울 일별 PNG. 지정되면 사례일 시간별 PNG 대신 이걸 쓴다. */
   dailyPng: string | null;
+  /** 왼쪽에서 고른 행정동. 경계 강조와 화면 이동에 쓴다. */
+  picked: Picked | null;
   onPick: (k: number, lon: number, lat: number) => void;
   onReady: (m: MlMap) => void;
 };
 
-function FireMap({ root, cells, values, fires, ymd, hour, dailyPng, onPick, onReady }: MapProps) {
+function FireMap({ root, cells, values, fires, ymd, hour, dailyPng, picked, onPick, onReady }: MapProps) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
   // ref 가 아니라 state 다. 지도 구축이 데이터 로드보다 늦게 끝나는 경우가 있는데,
@@ -967,6 +992,53 @@ function FireMap({ root, cells, values, fires, ymd, hour, dailyPng, onPick, onRe
             ],
             // 완전 투명이면 클릭이 안 잡히므로 최소값을 둔다
             "fill-opacity": ["case", ["!=", ["feature-state", "top"], null], 0.28, 0.01],
+          },
+        });
+
+        // ── 행정경계 ──────────────────────────────────────────
+        // 위험도만 깔려 있으면 "여기가 어디지"가 안 된다. 경계와 지명이 있어야
+        // 화면이 읽힌다. 동 경계는 6.6MB(gzip 1.3MB)라 지도 구축 뒤 비동기로 붙인다.
+        m.addSource("adm", { type: "geojson", data: emptyFC() });
+        m.addLayer({
+          id: "adm-line",
+          type: "line",
+          source: "adm",
+          paint: {
+            "line-color": "#cbd5e1",
+            // 전국 축척에서 3,559개 경계를 다 진하게 그리면 지도가 그물이 된다.
+            "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.18, 9, 0.4, 12, 0.6],
+            "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.4, 10, 0.8, 13, 1.4],
+          },
+        });
+        m.addLayer({
+          id: "adm-sel-fill",
+          type: "fill",
+          source: "adm",
+          filter: ["==", ["get", "cd"], ""],
+          paint: { "fill-color": "#38bdf8", "fill-opacity": 0.16 },
+        });
+        m.addLayer({
+          id: "adm-sel-line",
+          type: "line",
+          source: "adm",
+          filter: ["==", ["get", "cd"], ""],
+          paint: { "line-color": "#38bdf8", "line-width": 2.4, "line-opacity": 0.95 },
+        });
+        m.addLayer({
+          id: "adm-label",
+          type: "symbol",
+          source: "adm",
+          minzoom: 8.5,
+          layout: {
+            "text-field": ["get", "nm"],
+            "text-size": ["interpolate", ["linear"], ["zoom"], 9, 10, 13, 13],
+            "text-font": ["Noto Sans Regular"],
+            "text-allow-overlap": false,
+          },
+          paint: {
+            "text-color": "#e2e8f0",
+            "text-halo-color": "#0f172a",
+            "text-halo-width": 1.4,
           },
         });
 
@@ -1060,6 +1132,57 @@ function FireMap({ root, cells, values, fires, ymd, hour, dailyPng, onPick, onRe
       }
     }
   }, [ready, ymd, hour, values, dailyPng]);
+
+  // 행정경계 — 6.6MB 라 지도가 뜬 뒤에 붙인다. 첫 화면을 이것 때문에 기다리게 하지 않는다.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+    let dead = false;
+    loadAdm().then((j) => {
+      if (dead || !j) return;
+      (m.getSource("adm") as any)?.setData?.(j);
+    });
+    return () => {
+      dead = true;
+    };
+  }, [ready]);
+
+  // 선택한 동 강조 + 화면 이동
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+    const cd = picked?.cd ?? "";
+    for (const id of ["adm-sel-fill", "adm-sel-line"]) {
+      if (m.getLayer(id)) m.setFilter(id, ["==", ["get", "cd"], cd]);
+    }
+    if (!picked) return;
+    const [w, s, e, n] = picked.b;
+    // 좌우 패널이 지도를 가리므로 그만큼 비켜서 맞춘다. 다만 패딩 합이 컨테이너를
+    // 넘으면 fitBounds 가 계산을 포기하고 maxZoom 으로 붙어 버린다(격자 픽셀만 보인다).
+    // 좁은 창에서도 그런 일이 없게 남는 폭을 보장한다.
+    const cw = m.getContainer().clientWidth || 1280;
+    const ch = m.getContainer().clientHeight || 720;
+    // 비율로 줄이면 넓은 창에서도 패딩이 패널 폭보다 작아져 고른 동이 패널 뒤로
+    // 숨는다. 평소에는 패널 폭 그대로 쓰고, 창이 좁을 때만 상한을 건다.
+    m.fitBounds(
+      [
+        [w, s],
+        [e, n],
+      ],
+      {
+        padding: {
+          top: Math.min(90, ch * 0.15),
+          bottom: Math.min(120, ch * 0.2),
+          left: Math.min(310, cw * 0.3),
+          right: Math.min(400, cw * 0.32),
+        },
+        // 동 하나는 거의 항상 이 상한에 걸린다. 사실상 표시 배율이라 주변
+        // 지명이 같이 보이는 값으로 잡는다.
+        maxZoom: 10.6,
+        duration: 700,
+      }
+    );
+  }, [ready, picked]);
 
   // 실제 발화점 갱신
   useEffect(() => {
