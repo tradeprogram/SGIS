@@ -1,0 +1,20 @@
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+대상 시각: 2025-03-22 12:00:00  → 예측 ['t+1h', 't+2h', 't+3h']
+유효 픽셀: 403,385개 | 격자: (2130, 2123)
+
+[Stage1] LightGBM 23피처 추출 중...
+  지형 완료
+  인문환경 완료
+  동적 피처 완료
+입력 결측 제외 후 유효: 370,318 / 403,385
+모델: CNN v4b cnn_v4b_r20_s20_fold5_test2025 / 2025년을 학습에서 제외한 fold | Stage1 lgbm_r20_fold5_test2025.pkl
+P_lgbm 평균 0.0226  최대 0.9203
+
+[Stage2] 12h 시퀀스 추출 중...
+시퀀스 완료
+t+1h: 평균=0.17655 최대=0.9999 상위1%=0.9081 상위0.1%=0.9935
+t+2h: 평균=0.14192 최대=0.9999 상위1%=0.8896 상위0.1%=0.9930
+t+3h: 평균=0.12064 최대=0.9997 상위1%=0.8585 상위0.1%=0.9888
+
+저장: C:\for_sgis\data\grid_data\derived\hazard_ignition_20250322_1200.parquet  (0.9분)
