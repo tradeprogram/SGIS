@@ -1,0 +1,20 @@
+■ Stage2 GRU 재학습  ratio 1:20  seed 42  dropout 0.2
+전체 1,358,593행 / 양성(t1~t3 중 하나) 13,318행
+재표본 279,678행 (양성 13,318 + 음성 266,360)
+  연도별: {2021: 56710, 2022: 63232, 2023: 58082, 2024: 49985, 2025: 51669}
+fold1 test2021 val2022 | tr 159,736 te 56,710 | best_ep  27 | t+1h AUROC 재표본 0.8705 / 전체 0.8708 | 304s
+fold2 test2022 val2023 | tr 158,364 te 63,232 | best_ep  28 | t+1h AUROC 재표본 0.9441 / 전체 0.9441 | 225s
+fold3 test2023 val2024 | tr 171,611 te 58,082 | best_ep   5 | t+1h AUROC 재표본 0.8830 / 전체 0.8830 | 113s
+fold4 test2024 val2025 | tr 178,024 te 49,985 | best_ep  27 | t+1h AUROC 재표본 0.8393 / 전체 0.8396 | 250s
+fold5 test2025 val2021 | tr 171,299 te 51,669 | best_ep  32 | t+1h AUROC 재표본 0.9026 / 전체 0.9026 | 278s
+
+저장 C:\for_sgis\outputs\v4\dl_gru_v4b_s20_allfold_results.csv
+
+■ horizon별 평균
+            auroc   auprc  full_auroc  full_auprc
+horizon_h                                        
+1          0.8879  0.3115      0.8880      0.1548
+2          0.8887  0.2987      0.8900      0.1641
+3          0.8882  0.2904      0.8903      0.1690
+
+t+1h 평균 AUROC  재표본 0.8879 / 연도전체 0.8880

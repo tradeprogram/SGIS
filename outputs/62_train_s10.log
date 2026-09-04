@@ -1,0 +1,20 @@
+■ Stage2 CNN 재학습  ratio 1:10  seed 42  dropout 0.2
+전체 1,358,593행 / 양성(t1~t3 중 하나) 13,318행
+재표본 146,498행 (양성 13,318 + 음성 133,180)
+  연도별: {2021: 28849, 2022: 35470, 2023: 30253, 2024: 25326, 2025: 26600}
+fold1 test2021 val2022 | tr  82,179 te 28,849 | best_ep  34 | t+1h AUROC 재표본 0.8690 / 전체 0.8685 | 41s
+fold2 test2022 val2023 | tr  80,775 te 35,470 | best_ep  30 | t+1h AUROC 재표본 0.9429 / 전체 0.9427 | 34s
+fold3 test2023 val2024 | tr  90,919 te 30,253 | best_ep 102 | t+1h AUROC 재표본 0.8937 / 전체 0.8944 | 107s
+fold4 test2024 val2025 | tr  94,572 te 25,326 | best_ep  21 | t+1h AUROC 재표본 0.8044 / 전체 0.8045 | 36s
+fold5 test2025 val2021 | tr  91,049 te 26,600 | best_ep  43 | t+1h AUROC 재표본 0.9051 / 전체 0.9060 | 46s
+
+저장 C:\for_sgis\outputs\v4\dl_cnn_v4b_s10_allfold_results.csv
+
+■ horizon별 평균
+            auroc   auprc  full_auroc  full_auprc
+horizon_h                                        
+1          0.8830  0.4038      0.8832      0.1627
+2          0.8812  0.3829      0.8840      0.1625
+3          0.8826  0.3691      0.8868      0.1574
+
+t+1h 평균 AUROC  재표본 0.8830 / 연도전체 0.8832
