@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChatPanel, { type ChatContext } from "../components/ChatPanel";
 import RegionPicker, { type Picked } from "../components/RegionPicker";
+import WhyPanel from "../components/WhyPanel";
 
 type MlMap = any;
 
@@ -36,6 +37,8 @@ export default function Home() {
   const [detail, setDetail] = useState(false);
   // 왼쪽에서 고른 행정동. 지도 경계 강조와 화면 이동에 쓴다.
   const [picked, setPicked] = useState<Picked | null>(null);
+  // 우선지역에서 근거(occlusion 기여도)를 펼쳐 놓은 항목
+  const [whyOpen, setWhyOpen] = useState<number | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const stripRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -483,13 +486,14 @@ export default function Home() {
             </div>
           )}
           {topList.map((p, i) => (
+            <div key={i} className="mb-1">
             <button
-              key={i}
               onClick={() => {
                 mapRef.current?.flyTo({ center: [p.lon, p.lat], zoom: 11, duration: 900 });
                 if (p.i >= 0) pickCell(p.i, p.lon, p.lat);
+                setWhyOpen(whyOpen === i ? null : i);
               }}
-              className="mb-1 flex w-full items-center gap-2 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1.5 text-left transition hover:bg-white/10"
+              className="flex w-full items-center gap-2 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1.5 text-left transition hover:bg-white/10"
             >
               <span
                 className={
@@ -508,7 +512,14 @@ export default function Home() {
                   {p.old > 0 && <> · 65+ {nf(p.old)}명</>}
                 </span>
               </span>
+              {p.ot && (
+                <span className="shrink-0 text-[10px] text-slate-500">
+                  {whyOpen === i ? "닫기" : "왜?"}
+                </span>
+              )}
             </button>
+            {whyOpen === i && p.ot && p.os && <WhyPanel ot={p.ot} os={p.os} />}
+            </div>
           ))}
         </div>
       </div>
@@ -845,6 +856,9 @@ type PriorityItem = {
   popd: number;
   old: number;
   age: number | null;
+  /** occlusion 기여도(x1000). ot = 12시간 시계열, os = 정적 7개 */
+  ot?: number[];
+  os?: number[];
   forest: number;
 };
 type Fire = { lon: number; lat: number; hh: number; loc: string; ha: number; cells: number };

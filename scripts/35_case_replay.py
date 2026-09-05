@@ -38,6 +38,8 @@ POP_MIN    = 10.0
 W_HAZ      = 0.5
 TOP_N      = 10
 HORIZONS   = [1, 2, 3]
+# 정적 입력 순서 — _exposure 가 아니라 모델 입력 순서다. 바꾸면 기여도가 뒤섞인다.
+STATIC_NAMES = ['P_lgbm', 'ndvi', 'ndmi', 'hum4d', 'prcp4d', 'doy_sin', 'doy_cos']
 
 t0 = time.time()
 YEAR = int(DATE[:4])
@@ -224,6 +226,38 @@ for hh in HOURS:
     d.loc[~d['is_wui'], 'score_t1'] = np.nan
 
     top = d.nlargest(TOP_N, 'score_t1')
+
+    # ── 왜 이 격자가 위험한가 (occlusion 기여도) ──────────────────────
+    # SHAP 대신 occlusion 을 쓴다. 이 모델의 입력은 12시간 시계열이라
+    # "최근 몇 시간 중 어느 시점이 결정적이었나"가 진화 지휘에 직접 쓰이는데,
+    # 시점을 하나씩 그 격자 자신의 12시간 평균으로 덮어 출력 변화를 보면
+    # 그 답이 그대로 나온다. 추가 라이브러리도, 배경분포 가정도 필요 없다.
+    #   기여도 > 0  = 그 시점(또는 그 피처)이 위험도를 끌어올렸다
+    ti = top.index.to_numpy()
+    if len(ti):
+        sq_t, st_t = seq[ti], st[ti]                     # (K,12,2), (K,7)
+        # 정적 피처 기준선은 그 시각 WUI 격자의 중앙값. 전국 중앙값을 쓰면
+        # "산림 인접지치고 어떤가"가 아니라 "전국 평균 대비"가 되어 해석이 흐려진다.
+        st_base = np.nanmedian(st[d['is_wui'].values], axis=0)
+        K = len(ti)
+        var_sq, var_st = [sq_t], [st_t]
+        for k in range(12):                              # 시간축 12
+            v = sq_t.copy()
+            v[:, k, :] = sq_t.mean(axis=1)
+            var_sq.append(v); var_st.append(st_t)
+        for j in range(st_t.shape[1]):                   # 정적 7
+            v = st_t.copy()
+            v[:, j] = st_base[j]
+            var_sq.append(sq_t); var_st.append(v)
+        pv = infer(np.concatenate(var_sq), np.concatenate(var_st))[:, 0].reshape(-1, K)
+        contrib = pv[0] - pv[1:]                         # (19, K)
+        for c in range(12):
+            # 컬럼명에 '-' 를 쓰면 itertuples 가 조용히 위치 이름(_12 등)으로
+            # 바꿔 버려 이름 접근이 깨진다. h00 = t-11h … h11 = t0.
+            top[f'occ_h{c:02d}'] = contrib[c]
+        for j, nm2 in enumerate(STATIC_NAMES):
+            top[f'occ_{nm2}'] = contrib[12 + j]
+
     tops.append(top.assign(rank=range(1, len(top) + 1)))
 
     # 실제 발화 대조: T+1~T+3h 에 발화한 사건의 위험 백분위

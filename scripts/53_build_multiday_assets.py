@@ -36,6 +36,7 @@ SCRIPTS = r'C:\for_sgis\scripts'
 HOURS   = '6,7,8,9,10,11,12,13,14,15,16,17,18'
 TOP_PCT = 20.0
 VEC_PCT = 3.0
+OCC_STATIC = ['P_lgbm', 'ndvi', 'ndmi', 'hum4d', 'prcp4d', 'doy_sin', 'doy_cos']
 TOP_N   = 10
 PNG_DOWNSCALE = 2
 ONLY    = os.environ.get('ONLY_DATES')      # 쉼표 구분, 부분 실행용
@@ -244,6 +245,10 @@ for d in days:
             # 위로 올라왔는지 화면에서 설명이 안 된다.
             'popd': round(float(r.pop_day), 0), 'old': round(float(r.pop_old), 0),
             'age': round(float(r.avg_age), 1) if pd.notna(r.avg_age) else None,
+            # 왜 이 격자가 위험한가 — occlusion 기여도.
+            # ot = 12시간 시계열 각 시점, os = 정적 7개. 값이 작아 x1000 정수로 줄인다.
+            'ot': [int(round(getattr(r, f'occ_h{k:02d}') * 1000)) for k in range(12)],
+            'os': [int(round(getattr(r, f'occ_{n}') * 1000)) for n in OCC_STATIC],
         } for r, a2, b2 in zip(sub.itertuples(), lo, la)]
     with open(os.path.join(out_dir, 'priority.json'), 'w', encoding='utf-8') as f:
         json.dump(pri, f, ensure_ascii=False, separators=(',', ':'))
