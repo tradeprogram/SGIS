@@ -165,7 +165,10 @@ export type TimelineAnswer = {
   region: string;
   level: string;
   date: string;
+  /** 그 지역에서 가장 위험한 격자. 0.00 이면 전국 최상위권이라는 뜻이다 */
   bestTopPct: number | null;
+  /** 지역 격자들의 중앙값 — best 만으로는 지역 전체가 위험한지 알 수 없다 */
+  medianTopPct: number | null;
   inTop1: number;
   inTop5: number;
   popDay: number;
@@ -188,7 +191,7 @@ export function queryTimeline(
   if (!day) return null;
 
   const nationTop = day.top.slice(0, 5).map(([nm, sgg, b]) => ({
-    nm, sgg, topPct: Math.round(b) / 10,
+    nm, sgg, topPct: Math.round(b) / 100,
   }));
 
   const hit = resolveRegion(q, idx);
@@ -217,11 +220,12 @@ export function queryTimeline(
     region: label,
     level,
     date,
-    bestTopPct: row ? Math.round(row[1]) / 10 : null,
-    inTop1: row ? row[2] : 0,
-    inTop5: row ? row[3] : 0,
-    popDay: row ? row[4] : 0,
-    popOld: row ? row[5] : 0,
+    bestTopPct: row ? Math.round(row[1]) / 100 : null,
+    medianTopPct: row ? Math.round(row[2]) / 10 : null,
+    inTop1: row ? row[3] : 0,
+    inTop5: row ? row[4] : 0,
+    popDay: row ? row[5] : 0,
+    popOld: row ? row[6] : 0,
     nationTop,
   };
 }

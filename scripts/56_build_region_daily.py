@@ -13,7 +13,7 @@
 
   best 는 그 지역에서 가장 위험한 격자의 전국 상위 %다. 평균이 아니라 최솟값을
   쓰는 이유는 대응 판단이 "이 지역에 위험한 지점이 있는가"이지 "지역 전체가
-  고르게 위험한가"가 아니기 때문이다. 소수 첫째 자리까지만 쓰므로 x10 정수로 줄인다.
+  고르게 위험한가"가 아니기 때문이다. 최상위 구간에서 0.04% 와 0.009% 가 뭉개지면 안 되므로 x100 정수로 쓴다.
 
 출력  web/public/data/region_daily.json
 """
@@ -68,11 +68,15 @@ print(f'시도 {len(sidos)} / 시군구 {len(sggs)}')
 
 
 def fold(g, key, idx, only_hit):
-    a = g.groupby(key).agg(best=('best', 'min'), n1=('n1', 'sum'), n5=('n5', 'sum'),
+    # med 는 그 지역 격자들의 중앙값. best 만 보면 "전국 최상위 격자가 하나
+    # 있다"와 "지역 전체가 위험하다"가 구분되지 않는다.
+    a = g.groupby(key).agg(best=('best', 'min'), med=('med', 'median'),
+                           n1=('n1', 'sum'), n5=('n5', 'sum'),
                            pd_=('pd_', 'sum'), po=('po', 'sum')).reset_index()
     if only_hit:
         a = a[a['n5'] > 0]
-    return [[idx[r[key]], int(round(r['best'] * 10)), int(r['n1']), int(r['n5']),
+    return [[idx[r[key]], int(round(r['best'] * 100)), int(round(r['med'] * 10)),
+             int(r['n1']), int(r['n5']),
              int(round(r['pd_'])), int(round(r['po']))] for _, r in a.iterrows()]
 
 
@@ -82,14 +86,14 @@ for date, g in d.groupby('date'):
     days[date] = {
         'sido': fold(g, 'sido', si, False),
         'sgg': fold(g, 'sgg', gi, True),
-        'top': [[r['nm'], cd2sgg[r['adm_cd']].split(' ')[-1], int(round(r['best'] * 10))]
+        'top': [[r['nm'], cd2sgg[r['adm_cd']].split(' ')[-1], int(round(r['best'] * 100))]
                 for _, r in t.iterrows()],
     }
 
 out = {
     'hour': BASE_HH,
-    'note': 'best 는 x10 정수. 그 지역에서 가장 위험한 격자의 전국 상위 %.',
-    'fields': ['idx', 'best_x10', 'n_top1', 'n_top5', 'pop_day', 'pop_old'],
+    'note': 'best 는 x100 정수. 그 지역에서 가장 위험한 격자의 전국 상위 %.',
+    'fields': ['idx', 'best_x100', 'med_x10', 'n_top1', 'n_top5', 'pop_day', 'pop_old'],
     'sidos': sidos, 'sggs': sggs, 'days': days,
 }
 with io.open(OUT, 'w', encoding='utf-8') as f:
@@ -99,4 +103,4 @@ print(f'\n저장 {OUT}  ({os.path.getsize(OUT) / 1e6:.2f} MB, {len(days)}일)')
 k = max(days, key=lambda x: -len(days[x]['sgg']))
 print(f'\n예시 — 상위5% 시군구가 가장 많은 날 {k}')
 for nm, sg, b in days[k]['top'][:5]:
-    print(f'  {sg} {nm}  상위 {b / 10:.1f}%')
+    print(f'  {sg} {nm}  상위 {b / 100:.2f}%')
