@@ -35,6 +35,7 @@ from docx.oxml.ns import qn
 ROOT = os.path.join(r'C:', os.sep, 'for_sgis')
 DERIVED = os.path.join(ROOT, 'data', 'grid_data', 'derived')
 FIG = os.path.join(ROOT, 'outputs', 'figures')
+UI = os.path.join(FIG, 'ui')
 DEST = os.path.join(r'C:', os.sep, 'Users', 'user', 'Desktop', '하수범_공모전', 'SGIS')
 os.makedirs(DEST, exist_ok=True)
 
@@ -168,6 +169,30 @@ def FIG_ROW(doc, names, caption, width):
     return c
 
 
+def UI_FIG(doc, name, caption, width=15.6):
+    f = os.path.join(UI, f'{name}.png')
+    if not os.path.exists(f):
+        P(doc, f'[화면 누락: {name}]', size=9, italic=True)
+        return
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_after = Pt(1)
+    p.add_run().add_picture(f, width=Cm(width))
+    P(doc, caption, size=8.5, italic=True, align=WD_ALIGN_PARAGRAPH.CENTER, after=7)
+
+
+def UI_ROW(doc, pairs, caption, width=7.5):
+    t = doc.add_table(rows=1, cols=len(pairs))
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for i, n in enumerate(pairs):
+        cp = t.rows[0].cells[i].paragraphs[0]
+        cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        f = os.path.join(UI, f'{n}.png')
+        if os.path.exists(f):
+            cp.add_run().add_picture(f, width=Cm(width))
+    P(doc, caption, size=8.5, italic=True, align=WD_ALIGN_PARAGRAPH.CENTER, after=7)
+
+
 # ══════════════════════════════════════════════════════════════════════
 # ① 본문 — 5페이지 이내
 # ══════════════════════════════════════════════════════════════════════
@@ -242,6 +267,14 @@ SUB(doc, f'SGIS 행정동 경계 {F["n_dong"]:,}개를 지도에 얹어 지역�
           f'분석 에이전트가 “의성군 상황은?”에 직접 답한다. 시도 코드가 SGIS 자체 체계라 '
           f'표준코드로는 이을 수 없어, 동 이름 집합을 상위 계층과 맞춰 252/252 완전일치로 복원했다.')
 
+UI_FIG(doc, '10_overview',
+       '[화면 1] 첫 화면 — 2022-03-04(울진 산불 당일) 12시 기준 t+1~3h 위험지도. '
+       '좌측은 SGIS 지역 찾기·위험등급·주간 노출인구, 우측은 분석 에이전트, 하단은 시각 슬라이더.')
+UI_FIG(doc, '14_region_pick',
+       '[화면 2] SGIS 행정동 경계로 지역을 짚는다 — 경북 의성군 금성면(2025년 대형산불 발화지)을 '
+       '검색해 파랑으로 강조했고, 우측에 그 격자의 SGIS 노출(인구 1,835명·가구 781·주택 764호)과 '
+       '모델이 실제로 입력받은 값이 함께 뜬다.')
+
 FIG_ROW(doc, ['03_daytime', '06_vulnerability'],
         '[그림 1] 주간인구 보정(좌) — 격자 대부분이 낮에 비워진다  |  '
         '[그림 2] 고령·노후주택은 발화와 무관해 산식에서 제외(우)', width=8.2)
@@ -293,12 +326,16 @@ SUB(doc, '“위험도 × 노출”을 두 백분위의 평균으로 정의한 �
           '일반적인 틀이라 다른 분야의 SGIS 활용에도 적용된다. 전 과정이 공개 저장소에 있어 '
           '지자체가 자기 관할로 좁혀 재현할 수 있다.')
 
+UI_ROW(doc, ['12_priority_xai', '15_agent'],
+       '[화면 3] 대응 우선지역 Top10 과 근거(좌) — 주간 노출인구·65세 이상이 함께 표시되고, '
+       '“왜?”를 누르면 직전 1시간이 결정적이었음이 드러난다. 주간인구 추정의 한계도 같은 자리에 적었다.  |  '
+       '[화면 4] 분석 에이전트(우) — “의성군 상황은?”에 SGIS 격자 집계로 직접 답한다.', width=7.5)
+UI_FIG(doc, '16_timeline', width=14.0, caption='[화면 5] 전 기간 737일 — 사례 몇 건이 아니라 매일 산출했다. 하단 띠가 일별 위험등급이고, '
+       '파란 눈금이 시간대별 예측까지 제공되는 날이다.')
+
 FIG_ROW(doc, ['01_ignition_ranks', '04_ablation'],
         '[그림 3] 실제 발화 전수 평가(좌)  |  [그림 4] 검증셋 지표와 운영지표가 반대 방향(우)',
-        width=8.2)
-FIG_ROW(doc, ['02_time_axis', '05_occlusion'],
-        '[그림 5] 시간축 위험등급별 실제 발화(좌)  |  [그림 6] occlusion 기여도 — 왜 이 격자인가(우)',
-        width=8.2)
+        width=7.8)
 
 P(doc, 'SGIS를 빼면 이 시스템은 “위험한 곳”까지만 말하고 멈춘다. '
        '“먼저 지켜야 할 곳”은 SGIS가 있어야 나온다.',
