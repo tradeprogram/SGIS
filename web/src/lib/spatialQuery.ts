@@ -7,8 +7,10 @@
  *   한 번 더 왕복해야 하는데 지금 예산이 25초라 그럴 여유가 없다.
  *   그래서 질문에서 지역을 찾아 **미리 계산해 컨텍스트에 실어 보낸다.**
  *
- * 한계 — 사례일 상세 모드에서만 동작한다. 전 기간 737일은 격자 단위 값을
- *   저장하지 않기 때문이다(수십 GB). 그 모드에서는 null 을 돌려준다.
+ * 두 모드가 서로 다른 자료를 쓴다
+ *   사례일 상세  cells.json + values.json 으로 격자에서 직접 집계
+ *   전 기간 737일  격자 단위 값이 없어(수십 GB) 51번이 행정동으로 접어 둔
+ *                  region_daily.json 을 읽는다. 그래서 시군구·시도 단위까지만 답한다.
  */
 
 export type AdmIndexLite = Record<string, Record<string, { cd: string; nm: string }[]>>;
@@ -141,5 +143,85 @@ export function queryRegion(
     population: Math.round(pop),
     populationRanked: Math.round(popRanked),
     worst: hit.level === "dong" ? [] : worst,
+  };
+}
+
+
+// ── 전 기간 모드 ─────────────────────────────────────────────────────
+// 56번이 만든 region_daily.json. 격자가 없으므로 지역 단위로만 답한다.
+
+export type RegionDaily = {
+  hour: number;
+  sidos: string[];
+  sggs: string[];
+  days: Record<string, {
+    sido: number[][];
+    sgg: number[][];
+    top: [string, string, number][];
+  }>;
+};
+
+export type TimelineAnswer = {
+  region: string;
+  level: string;
+  date: string;
+  bestTopPct: number | null;
+  inTop1: number;
+  inTop5: number;
+  popDay: number;
+  popOld: number;
+  /** 그날 전국에서 가장 위험한 행정동 (지역 매칭이 없을 때도 준다) */
+  nationTop: { nm: string; sgg: string; topPct: number }[];
+};
+
+/**
+ * 전 기간 모드 질의. hit 이 null 이면 그날 전국 상위 동만 돌려준다 —
+ * "오늘 어디가 제일 위험해?" 같은 질문이 지역명 없이 들어오기 때문이다.
+ */
+export function queryTimeline(
+  q: string,
+  date: string,
+  rd: RegionDaily,
+  idx: AdmIndexLite
+): TimelineAnswer | null {
+  const day = rd.days[date];
+  if (!day) return null;
+
+  const nationTop = day.top.slice(0, 5).map(([nm, sgg, b]) => ({
+    nm, sgg, topPct: Math.round(b) / 10,
+  }));
+
+  const hit = resolveRegion(q, idx);
+  let label = "전국";
+  let level = "nation";
+  let row: number[] | undefined;
+
+  if (hit) {
+    // region_daily 는 시도·시군구까지만 있다. 동을 물으면 그 동이 속한
+    // 시군구로 올려서 답하고, 라벨에 그 사실을 드러낸다.
+    const sggName = hit.level === "sido" ? null : hit.label.split(" ").slice(0, 2).join(" ");
+    if (hit.level === "sido") {
+      const i = rd.sidos.indexOf(hit.label);
+      row = day.sido.find((r) => r[0] === i);
+      label = hit.label;
+      level = "sido";
+    } else {
+      const i = rd.sggs.findIndex((s) => sggName && s.endsWith(sggName.split(" ").pop() || ""));
+      row = day.sgg.find((r) => r[0] === i);
+      label = i >= 0 ? rd.sggs[i] : hit.label;
+      level = hit.level === "dong" ? "sgg(동 단위 없음)" : "sgg";
+    }
+  }
+
+  return {
+    region: label,
+    level,
+    date,
+    bestTopPct: row ? Math.round(row[1]) / 10 : null,
+    inTop1: row ? row[2] : 0,
+    inTop5: row ? row[3] : 0,
+    popDay: row ? row[4] : 0,
+    popOld: row ? row[5] : 0,
+    nationTop,
   };
 }

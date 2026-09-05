@@ -145,6 +145,11 @@ years = [int(ONLY_YEAR)] if ONLY_YEAR else YEARS_ALL
 # 최종 통합은 daily_scan_*.parquet 을 glob 하므로 접미사가 붙어도 자동으로 합쳐진다.
 SUFFIX = os.environ.get('OUT_SUFFIX', '')
 
+# 행정동 단위 집계. 전 기간 모드는 격자 단위 값을 저장하지 않아(수십 GB)
+# 챗봇 공간질의가 "이 지역은 어떤가"에 답할 수 없었다. 격자를 다 남기는 대신
+# 행정동으로 접어 두면 3,559행/시각으로 줄어 감당이 된다.
+REGION_AGG = os.environ.get('REGION_AGG') == '1'
+
 for YEAR in years:
     out_path = os.path.join(OUT_DIR, f'daily_scan_{YEAR}{SUFFIX}.parquet')
     rank_path = os.path.join(OUT_DIR, f'ignition_ranks_{YEAR}{SUFFIX}.parquet')
@@ -155,6 +160,8 @@ for YEAR in years:
     fno = S2.fold_of(YEAR)
     print(f"\n{'='*70}\n{YEAR}년 스캔 (그 해를 학습에서 제외한 fold {fno})\n{'='*70}")
     lgbm, _scaler, infer, _desc = S2.load(YEAR)
+    reg_rows = []
+    adm_codes = base0['adm_cd'].values
 
     # 연도 고정 피처는 해마다 1회만 읽는다
     _c = {}
@@ -310,6 +317,24 @@ for YEAR in years:
                 'top10_pop': float(pop[np.argsort(-np.nan_to_num(score, nan=-1))[:10]].sum()),
             })
 
+            if REGION_AGG:
+                # 행정동별로 접는다. best 는 그 동에서 가장 위험한 격자의 상위 %.
+                # 평균이 아니라 최솟값을 쓰는 이유는 대응 판단이 "이 동에 위험한
+                # 지점이 있는가"이지 "동 전체가 고르게 위험한가"가 아니기 때문이다.
+                ok_r = ~np.isnan(t1) & pd.notna(adm_codes)
+                rg = pd.DataFrame({
+                    'adm_cd': adm_codes[ok_r], 't1': t1[ok_r],
+                    'pop_day': pop_day[ok_r], 'pop_old': pop_old[ok_r],
+                }).groupby('adm_cd')
+                agg = rg.agg(best=('t1', 'min'), med=('t1', 'median'), n=('t1', 'size'),
+                             pd_=('pop_day', 'sum'), po=('pop_old', 'sum'))
+                agg['n1'] = rg['t1'].apply(lambda x: int((x <= 1).sum()))
+                agg['n5'] = rg['t1'].apply(lambda x: int((x <= 5).sum()))
+                agg = agg.reset_index()
+                agg['date'] = day.date()
+                agg['hour'] = hh
+                reg_rows.append(agg)
+
             # 이 시각의 t+1~t+3h에 실제로 발화한 사건의 순위
             for H in HORIZONS:
                 tgt = TT + pd.Timedelta(hours=H)
@@ -332,6 +357,10 @@ for YEAR in years:
 
     pd.DataFrame(rows).to_parquet(out_path, index=False)
     pd.DataFrame(rank_rows).to_parquet(rank_path, index=False)
+    if REGION_AGG and reg_rows:
+        rp = os.path.join(OUT_DIR, f'region_scan_{YEAR}{SUFFIX}.parquet')
+        pd.concat(reg_rows, ignore_index=True).to_parquet(rp, index=False)
+        print(f'  행정동 집계 → {rp}')
     print(f'{YEAR} 완료: {len(rows)}개 시각-일, 발화순위 {len(rank_rows)}건 → {out_path}')
 
 # ── 통합 ─────────────────────────────────────────────────────────────

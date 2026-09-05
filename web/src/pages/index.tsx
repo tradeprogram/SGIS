@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChatPanel, { type ChatContext } from "../components/ChatPanel";
 import RegionPicker, { type Picked } from "../components/RegionPicker";
 import WhyPanel from "../components/WhyPanel";
-import { resolveRegion, queryRegion, type AdmIndexLite } from "../lib/spatialQuery";
+import { resolveRegion, queryRegion, queryTimeline, type AdmIndexLite, type RegionDaily } from "../lib/spatialQuery";
 
 type MlMap = any;
 
@@ -43,8 +43,11 @@ export default function Home() {
   // 공간질의용 행정동 인덱스. RegionPicker 와 같은 파일을 쓰지만 여기서는
   // 이름→코드만 필요해서 가볍게 따로 들고 있는다.
   const [admIdx, setAdmIdx] = useState<AdmIndexLite | null>(null);
+  // 전 기간 모드용 행정동 일별 집계. 56번 미실행이면 없으므로 그때는 안내만 한다.
+  const [regionDaily, setRegionDaily] = useState<RegionDaily | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const stripRef = useRef<HTMLCanvasElement | null>(null);
+  const caseRef = useRef<HTMLCanvasElement | null>(null);
 
   // 최초 로드 — 사례일 목록과 전 일자 공용 격자
   useEffect(() => {
@@ -65,11 +68,18 @@ export default function Home() {
       .then((t: Timeline | null) => {
         if (!t) return;
         setTl(t);
+        // 피해가 가장 큰 날로 연다. 시간대별 자산이 있는 날이면 바로 상세 모드로
+        // 들어간다 — 시계열 예측이 본론인데 전 기간 지도로 시작하면 그게
+        // 부가기능처럼 보인다.
         let bi = 0;
         t.days.forEach((x, i) => {
           if (x.ha > t.days[bi].ha) bi = i;
         });
         setTi(bi);
+        if (t.days[bi]?.c === 1) {
+          setDetail(true);
+          setYmd(t.days[bi].d.replace(/-/g, ""));
+        }
       })
       .catch(() => setTl(null));
   }, []);
@@ -79,6 +89,10 @@ export default function Home() {
       .then((r) => (r.ok ? r.json() : null))
       .then(setAdmIdx)
       .catch(() => setAdmIdx(null));
+    fetch("/data/region_daily.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setRegionDaily)
+      .catch(() => setRegionDaily(null));
   }, []);
 
   // 시간축 위험등급. 54번 미실행이면 파일이 없으므로 해당 블록만 숨긴다.
@@ -110,7 +124,21 @@ export default function Home() {
       g.fillStyle = x.l ? timeLevelColor(x.l) : "#334155";
       g.fillRect(i, 0, 1, 1);
     });
-  }, [tl]);
+  }, [tl, detail]);
+
+  // 시간대별 자산이 있는 날을 띠 위에 눈금으로 찍는다. 어느 날이 상세로
+  // 열리는지 눌러 봐야 알 수 있으면 그 기능은 없는 것과 같다.
+  useEffect(() => {
+    const cv = caseRef.current;
+    if (!cv || !tl) return;
+    cv.width = tl.days.length;
+    cv.height = 1;
+    const g = cv.getContext("2d");
+    if (!g) return;
+    g.clearRect(0, 0, cv.width, 1);
+    g.fillStyle = "#38bdf8";
+    tl.days.forEach((x, i) => x.c === 1 && g.fillRect(i, 0, 1, 1));
+  }, [tl, detail]);
 
   const td = tl && tl.days.length ? tl.days[Math.min(ti, tl.days.length - 1)] : null;
   const tYmd = td ? td.d.replace(/-/g, "") : null;
@@ -195,13 +223,19 @@ export default function Home() {
   // 전 기간 모드에는 격자 단위 값이 없어(수십 GB) null 을 돌려준다.
   const spatialQuery = useCallback(
     (q: string) => {
-      if (!admIdx || !cells || !detail || !day) return null;
+      if (!admIdx) return null;
+      // 전 기간 모드는 격자 단위 값이 없어 행정동 집계(56번)로 답한다.
+      if (!detail) {
+        if (!regionDaily || !td) return null;
+        return queryTimeline(q, td.d, regionDaily, admIdx as AdmIndexLite);
+      }
+      if (!cells || !day) return null;
       const hit = resolveRegion(q, admIdx as AdmIndexLite);
       if (!hit) return null;
       const hv = day.values.hours[String(hour)] ?? null;
       return queryRegion(hit, cells as any, hv, day.values.scale.top);
     },
-    [admIdx, cells, detail, day, hour]
+    [admIdx, cells, detail, day, hour, regionDaily, td]
   );
 
   const trDate = detail ? (info?.date ?? null) : (td?.d ?? null);
@@ -635,6 +669,44 @@ export default function Home() {
       {/* 채팅 패널이 상시 고정(360px + 여백)이라 그만큼 항상 비켜 준다 */}
       <div className="pointer-events-none absolute bottom-0 left-0 right-[372px] z-20 p-3">
         <div className="glass glass-live pointer-events-auto mx-auto max-w-4xl px-4 py-3">
+          {/* 모드 탭 — 항상 보인다. 예전에는 '시간대별 상세'가 우측 끝 작은
+              버튼이라 이 시스템의 본론인 시계열 예측이 숨어 보였다. */}
+          <div className="mb-2 flex items-center gap-1 border-b border-white/10 pb-2">
+            <button
+              onClick={() => {
+                setPlaying(false);
+                setDetail(false);
+              }}
+              className={
+                "rounded-lg px-3 py-1.5 text-[11px] font-medium transition " +
+                (!detail ? "bg-white/15 text-white" : "text-slate-400 hover:bg-white/5")
+              }
+            >
+              전 기간 {tl?.days.length ?? 0}일
+            </button>
+            <button
+              onClick={() => td?.c === 1 && setDetail(true)}
+              disabled={td?.c !== 1}
+              title={td?.c === 1 ? "" : "이 날은 시간대별 자산이 없습니다. 눈금이 있는 날을 고르세요."}
+              className={
+                "rounded-lg px-3 py-1.5 text-[11px] font-medium transition " +
+                (detail
+                  ? "bg-accent/70 text-white"
+                  : td?.c === 1
+                    ? "text-accent hover:bg-accent/15"
+                    : "cursor-not-allowed text-slate-600")
+              }
+            >
+              ⏱ 시간대별 예측
+            </button>
+            <span className="ml-auto text-[10px] text-slate-500">
+              {detail
+                ? "t+1h · t+2h · t+3h 를 시각마다 새로 산출합니다"
+                : td?.c === 1
+                  ? "이 날은 시간대별로 볼 수 있습니다"
+                  : `사례 ${root.days.length}일은 시간대별로 볼 수 있습니다`}
+            </span>
+          </div>
           {detail ? (
             <>
               <div className="mb-1.5 flex items-center gap-3">
@@ -645,18 +717,13 @@ export default function Home() {
                   {playing ? "❚❚" : "▶"}
                 </button>
                 <div className="text-[11px] text-slate-300">
-                  시간을 움직이면 <b className="text-white">위험지도</b>와{" "}
-                  <b className="text-white">SGIS 노출인구</b>가 함께 갱신됩니다
+                  <b className="text-white">{pad(hour)}시</b> 기준 예측 —{" "}
+                  <b className="text-accent">{pad(hour + 1)}~{pad(hour + 3)}시</b> 신규 발화 위험.
+                  시각을 옮기면 위험지도와 SGIS 노출인구가 함께 갱신됩니다
                 </div>
-                <button
-                  onClick={() => {
-                    setPlaying(false);
-                    setDetail(false);
-                  }}
-                  className="pill ml-auto bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 hover:bg-white/20"
-                >
-                  ← 전 기간으로
-                </button>
+                <span className="tnum ml-auto text-[10px] text-slate-500">
+                  {idx + 1} / {hours.length} 시각
+                </span>
               </div>
               <input
                 type="range"
@@ -703,21 +770,14 @@ export default function Home() {
                       실제 발화 {td.n}건
                     </span>
                   )}
-                  {td?.c === 1 && (
-                    <button
-                      onClick={() => setDetail(true)}
-                      className="pill bg-accent/70 px-2.5 py-1 text-[10px] text-white hover:bg-accent"
-                    >
-                      시간대별 상세 →
-                    </button>
-                  )}
+
                 </div>
               </div>
 
               {/* 741일 위험등급 띠 — div 737개는 각 1px 미만이라 0으로 찌그러진다.
                   하루 1픽셀로 캔버스에 그리고 CSS 로 늘린다. */}
               <div
-                className="relative mb-1 h-5 w-full cursor-pointer overflow-hidden rounded"
+                className="relative mb-0.5 h-5 w-full cursor-pointer overflow-hidden rounded"
                 onClick={(e) => {
                   if (!tl) return;
                   const r = e.currentTarget.getBoundingClientRect();
@@ -730,12 +790,22 @@ export default function Home() {
                   className="h-full w-full"
                   style={{ imageRendering: "pixelated" }}
                 />
+                {/* 시간대별로 열리는 날 — 띠 아래쪽에 얇게 깐다 */}
+                <canvas
+                  ref={caseRef}
+                  className="pointer-events-none absolute bottom-0 left-0 h-[3px] w-full"
+                  style={{ imageRendering: "pixelated" }}
+                />
                 {tl && (
                   <div
                     className="pointer-events-none absolute top-0 h-full w-[2px] bg-white shadow"
                     style={{ left: `calc(${(ti / Math.max(1, tl.days.length - 1)) * 100}% - 1px)` }}
                   />
                 )}
+              </div>
+              <div className="mb-1 flex items-center gap-1.5 text-[9px] text-slate-500">
+                <span className="inline-block h-[3px] w-4 rounded-sm bg-sky-400" />
+                시간대별 예측이 있는 날 {root.days.length}일 — 눌러서 그 날로 이동
               </div>
               <input
                 type="range"
