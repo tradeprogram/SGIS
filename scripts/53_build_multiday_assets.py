@@ -119,7 +119,7 @@ exp = pd.read_parquet(os.path.join(DERIVED, 'mask_exposure_500m.parquet'))
 adm = pd.read_parquet(os.path.join(DERIVED, 'cell_admin.parquet')).astype({'prow': 'int32', 'pcol': 'int32'})
 cells = cells.merge(exp[['prow', 'pcol', 'pop_total', 'households', 'houses', 'low_count_only']],
                     on=['prow', 'pcol'], how='left')
-cells = cells.merge(adm[['prow', 'pcol', 'adm_nm']], on=['prow', 'pcol'], how='left')
+cells = cells.merge(adm[['prow', 'pcol', 'adm_nm', 'adm_cd']], on=['prow', 'pcol'], how='left')
 
 tr = pyproj.Transformer.from_crs('EPSG:5179', 'EPSG:4326', always_xy=True)
 x0 = ox + 500 * cells['pcol'].values
@@ -129,6 +129,10 @@ lon1, lat1 = tr.transform(x0 + 500, y0 + 500)
 
 names = sorted({str(v) for v in cells['adm_nm'].fillna('')})
 nidx = {v: i for i, v in enumerate(names)}
+# 행정동 코드도 같이 내보낸다. 동 이름은 중복되므로(삼성동 등) 이름만으로는
+# "의성군 금성면" 같은 질의를 격자에 연결할 수 없다. 챗봇 공간질의가 이걸 쓴다.
+codes = sorted({str(v) for v in cells['adm_cd'].fillna('')})
+cidx = {v: i for i, v in enumerate(codes)}
 bbox = np.stack([lon0, lat0, lon1, lat1], axis=1)
 
 cells_json = {
@@ -136,6 +140,8 @@ cells_json = {
     'b': (np.round(bbox * 1e5).astype(np.int64).ravel()).tolist(),   # 4개씩 한 셀
     'nms': names,
     'nmi': [nidx[str(v) if pd.notna(v) else ''] for v in cells['adm_nm'].fillna('')],
+    'cds': codes,
+    'cdi': [cidx[str(v) if pd.notna(v) else ''] for v in cells['adm_cd'].fillna('')],
     'pop': [round(float(v), 1) if pd.notna(v) else 0 for v in cells['pop_total']],
     'hh': [int(v) if pd.notna(v) else 0 for v in cells['households']],
     'ho': [int(v) if pd.notna(v) else 0 for v in cells['houses']],

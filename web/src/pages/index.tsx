@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChatPanel, { type ChatContext } from "../components/ChatPanel";
 import RegionPicker, { type Picked } from "../components/RegionPicker";
 import WhyPanel from "../components/WhyPanel";
+import { resolveRegion, queryRegion, type AdmIndexLite } from "../lib/spatialQuery";
 
 type MlMap = any;
 
@@ -39,6 +40,9 @@ export default function Home() {
   const [picked, setPicked] = useState<Picked | null>(null);
   // 우선지역에서 근거(occlusion 기여도)를 펼쳐 놓은 항목
   const [whyOpen, setWhyOpen] = useState<number | null>(null);
+  // 공간질의용 행정동 인덱스. RegionPicker 와 같은 파일을 쓰지만 여기서는
+  // 이름→코드만 필요해서 가볍게 따로 들고 있는다.
+  const [admIdx, setAdmIdx] = useState<AdmIndexLite | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const stripRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -68,6 +72,13 @@ export default function Home() {
         setTi(bi);
       })
       .catch(() => setTl(null));
+  }, []);
+
+  useEffect(() => {
+    fetch("/data/adm_index.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setAdmIdx)
+      .catch(() => setAdmIdx(null));
   }, []);
 
   // 시간축 위험등급. 54번 미실행이면 파일이 없으므로 해당 블록만 숨긴다.
@@ -180,6 +191,19 @@ export default function Home() {
     [detail, hour, tl, info, s, day, td, topList, sel]
   );
 
+  // 질문에서 지역을 찾아 현재 시각 위험도를 집계한다.
+  // 전 기간 모드에는 격자 단위 값이 없어(수십 GB) null 을 돌려준다.
+  const spatialQuery = useCallback(
+    (q: string) => {
+      if (!admIdx || !cells || !detail || !day) return null;
+      const hit = resolveRegion(q, admIdx as AdmIndexLite);
+      if (!hit) return null;
+      const hv = day.values.hours[String(hour)] ?? null;
+      return queryRegion(hit, cells as any, hv, day.values.scale.top);
+    },
+    [admIdx, cells, detail, day, hour]
+  );
+
   const trDate = detail ? (info?.date ?? null) : (td?.d ?? null);
   const tr =
     timeRisk && trDate ? timeRisk.days[trDate]?.[String(tl?.hour ?? 10)] ?? null : null;
@@ -257,7 +281,7 @@ export default function Home() {
         onReady={(m: MlMap) => (mapRef.current = m)}
       />
 
-      <ChatPanel ctx={chatCtx} />
+      <ChatPanel ctx={chatCtx} spatial={spatialQuery} />
 
       {/* ── 헤더 ─────────────────────────────────────────────── */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start gap-3 p-3">
@@ -825,6 +849,9 @@ type Cells = {
   n: number;
   b: number[];
   nms: string[];
+  /** 행정동 코드 — 동 이름이 겹치므로 공간질의는 이 코드로 매칭한다 */
+  cds: string[];
+  cdi: number[];
   nmi: number[];
   pop: number[];
   hh: number[];

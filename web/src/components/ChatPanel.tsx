@@ -41,7 +41,14 @@ const GREETING =
   "보면서 답해 드립니다.\n\n한 가지 먼저 말씀드리면, 이 지도의 위험도는 발생확률이 아니라 " +
   "전국 403,385격자 안에서의 상대 순위입니다. 무엇이든 물어보세요.";
 
-export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
+export default function ChatPanel({
+  ctx,
+  spatial,
+}: {
+  ctx: ChatContext;
+  /** 질문에서 지역을 찾아 현재 시각 위험도를 집계해 준다. 없으면 null. */
+  spatial?: (q: string) => unknown | null;
+}) {
   const [msgs, setMsgs] = useState<Msg[]>([{ role: "agent", text: GREETING }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,7 +85,9 @@ export default function ChatPanel({ ctx }: { ctx: ChatContext }) {
         body: JSON.stringify({
           message: q,
           mode: ctxRef.current.mode,
-          context: ctxRef.current,
+          // 화면 밖 지역을 물었으면 미리 집계해서 같이 보낸다. 안 그러면
+          // 모델이 "화면에 없어 모른다"고만 답한다.
+          context: { ...ctxRef.current, spatial: spatial?.(q) ?? null },
           // 직전 대화만 넘긴다. 길어지면 화면 컨텍스트가 묻힌다.
           history: msgs.slice(-8).map((m) => ({ role: m.role, text: m.text })),
         }),
