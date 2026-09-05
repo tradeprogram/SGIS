@@ -57,8 +57,10 @@ export default function Home() {
     ]).then(([r, c]: [Root, Cells]) => {
       setRoot(r);
       setCells(c);
+      // 타임라인이 최대 피해일로 이미 정했으면 덮지 않는다. 두 fetch 가 경쟁하는데
+      // cells.json 이 커지면서 순서가 뒤집혀 첫 화면 날짜가 바뀐 적이 있다.
       const pref = r.days.find((d) => d.n_fire > 0) ?? r.days[0];
-      setYmd(pref.ymd);
+      setYmd((cur) => cur ?? pref.ymd);
     });
   }, []);
 
